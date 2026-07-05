@@ -15,7 +15,9 @@ const mime = new Map([
   ['.png', 'image/png'],
   ['.jpg', 'image/jpeg'],
   ['.jpeg', 'image/jpeg'],
-  ['.ico', 'image/x-icon']
+  ['.ico', 'image/x-icon'],
+  ['.mp3', 'audio/mpeg'],
+  ['.wav', 'audio/wav']
 ]);
 
 const server = http.createServer((request, response) => {

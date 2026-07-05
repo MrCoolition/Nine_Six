@@ -126,6 +126,7 @@ async function runCase(name, rolls) {
     roll: document.querySelector('.turn-panel strong')?.textContent?.trim(),
     bank: document.querySelector('.score-meter strong')?.textContent?.trim(),
     burst: document.querySelector('.message-burst strong')?.textContent?.trim(),
+    boofLetters: Array.from(document.querySelectorAll('.boofball-stack i b')).map((node) => node.textContent.trim()).join(''),
     audioEvents: window.__nineSixAudioEvents || []
   }))()`);
 }
@@ -158,6 +159,7 @@ async function runExactBankNoVoiceCase() {
     roll: document.querySelector('.turn-panel strong')?.textContent?.trim(),
     bank: document.querySelector('.score-meter strong')?.textContent?.trim(),
     burst: document.querySelector('.message-burst strong')?.textContent?.trim(),
+    boofLetters: Array.from(document.querySelectorAll('.boofball-stack i b')).map((node) => node.textContent.trim()).join(''),
     audioEvents: window.__nineSixAudioEvents || []
   }))()`);
 }
@@ -230,15 +232,22 @@ const hasRevealEffects = (caseResult) => {
 if (
   badSrcs.includes('jackpot-')
   || screenshotBadSrcs.includes('jackpot-')
+  || !badSrcs.includes('boofball-boo-')
+  || !screenshotBadSrcs.includes('boofball-boo-')
+  || cases.badHand.boofLetters !== 'B'
+  || cases.screenshotBadHand.boofLetters !== 'B'
   || cases.screenshotBadHand.roll !== '[5, 1, K]'
   || !hasRevealEffects(cases.perfectNineSix)
   || !perfectSrcs.includes('jackpot-')
   || perfectSrcs.includes('bad-hand-')
+  || perfectSrcs.includes('boofball-boo-')
   || !bustSrcs.includes('bust-horn-')
   || bustSrcs.includes('jackpot-')
   || bustSrcs.includes('bad-hand-')
+  || bustSrcs.includes('boofball-boo-')
   || exactBankSrcs.includes('jackpot-')
   || exactBankSrcs.includes('bad-hand-')
+  || exactBankSrcs.includes('boofball-boo-')
   || exactBankSrcs.includes('bust-horn-')
 ) {
   process.exitCode = 1;

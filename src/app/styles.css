@@ -73,6 +73,16 @@ button:disabled {
   border-color: #ffd86d;
 }
 
+.mode-action.adult {
+  border-color: rgba(255, 54, 93, 0.46);
+  background: linear-gradient(180deg, rgba(255, 54, 93, 0.32), rgba(75, 16, 24, 0.62));
+}
+
+.mode-action.pg {
+  border-color: rgba(66, 201, 137, 0.5);
+  background: linear-gradient(180deg, rgba(66, 201, 137, 0.2), rgba(13, 42, 31, 0.68));
+}
+
 .boot-shell {
   min-height: 100vh;
   display: grid;
@@ -712,6 +722,10 @@ button:disabled {
   text-shadow:
     0 2px 0 rgba(0, 0, 0, 0.42),
     0 0 18px rgba(255, 248, 232, 0.34);
+}
+
+.boofball-stack i.empty b {
+  opacity: 0;
 }
 
 .boofball-stack i.latest {

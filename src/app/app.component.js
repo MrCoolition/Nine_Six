@@ -16,7 +16,11 @@ const JACKPOT_CALLOUTS = [
   './src/assets/jackpot-arabella.mp3',
   './src/assets/jackpot-viraj.mp3'
 ];
-const NO_SCORE_CALLOUTS = [];
+const BOOFBALL_CALLOUTS = [
+  './src/assets/boofball-boo-1.mp3',
+  './src/assets/boofball-boo-2.mp3',
+  './src/assets/boofball-boo-3.mp3'
+];
 const BUST_HORNS = [
   './src/assets/bust-horn-1.wav',
   './src/assets/bust-horn-2.wav',
@@ -31,6 +35,21 @@ const TUMBLE_DICE_SOUNDS = [
 ];
 const CARD_DEAL_SOUNDS = [
   './src/assets/card-deal-1.wav'
+];
+const PG_REPLACEMENTS = [
+  [/NINE SIX BITCH!!!!/g, 'NINE SIX!'],
+  [/NINE SIX BITCH/g, 'NINE SIX'],
+  [/Nine Six Bitch!!!!/g, 'Nine Six!'],
+  [/Nine Six Bitch/g, 'Nine Six'],
+  [/WALK THE FUCK OUT/g, 'WALK OUT'],
+  [/Walk the fuck out/gi, 'Walk out'],
+  [/bullshit/gi, 'bad hand'],
+  [/Trash hand/gi, 'No-score hand'],
+  [/\bfucking\b/gi, 'very'],
+  [/\bfuck\b/gi, 'heck'],
+  [/\bshit\b/gi, 'stuff'],
+  [/Talk stuff/gi, 'Talk big'],
+  [/raising hell/gi, 'rolling wild']
 ];
 const cardRanks = ['J', 'Q', 'K'];
 const cardSuits = [
@@ -80,6 +99,7 @@ const state = {
   round: 0,
   rolling: false,
   muted: false,
+  toneMode: 'adult',
   musicPlaying: false,
   musicVolume: 0.45,
   musicError: '',
@@ -94,6 +114,7 @@ const state = {
   calloutTimerIds: [],
   soundTimerIds: [],
   lastCallout: null,
+  lastCalloutByType: {},
   actionTimes: {}
 };
 
@@ -117,6 +138,7 @@ function render() {
   const heatLevel = gameLost ? 'Walked' : gameWon ? 'Paid' : current.card?.rank === 'Q' ? 'Queen' : state.totalScore >= 72 ? 'Hot' : state.round >= 3 ? 'Warm' : 'Cold';
   const musicVolume = Math.round(state.musicVolume * 100);
   const targetGap = Math.max(0, TARGET_SCORE - state.totalScore);
+  const adultMode = isAdultMode();
 
   root.innerHTML = `
     <main class="game-shell ${moodClass} ${rollingClass} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''}">
@@ -127,7 +149,7 @@ function render() {
             <span>6</span>
           </div>
           <div>
-            <p>NINE SIX / 21+ TABLE</p>
+            <p>${adultMode ? 'NINE SIX / 21+ TABLE' : 'NINE SIX / PG TABLE'}</p>
             <h1>NINE SIX.</h1>
             <small>Two dice. One card. The hand is 9, 6, Queen.</small>
           </div>
@@ -154,11 +176,14 @@ function render() {
             <button type="button" data-action="sound" aria-label="Toggle sound">
               ${state.muted ? 'Sound off' : 'Sound on'}
             </button>
+            <button type="button" class="mode-action ${adultMode ? 'adult' : 'pg'}" data-action="tone-mode" aria-pressed="${adultMode ? 'true' : 'false'}">
+              ${adultMode ? 'Adult' : 'PG'}
+            </button>
           </div>
           <div class="table-tags" aria-label="Table tone">
-            <span>21+ tone</span>
+            <span>${adultMode ? '21+ tone' : 'PG tone'}</span>
             <span>${TABLE_STAKE} chip ante</span>
-            <span>uncensored calls</span>
+            <span>${adultMode ? 'uncensored calls' : 'clean calls'}</span>
           </div>
           <div class="music-console ${state.musicPlaying ? 'playing' : ''}" aria-label="Music controls">
             <div>
@@ -201,7 +226,7 @@ function render() {
               <span>This Turn</span>
               <strong>[${displayRollList(current)}]</strong>
             </div>
-            <p>${current.verdict}</p>
+            <p>${displayCopy(current.verdict)}</p>
           </div>
         </section>
 
@@ -243,7 +268,7 @@ function render() {
 
           <section class="rules-card">
             <h2>House Rules</h2>
-            <p>Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS is a walk-out loss. Under 7 gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot busts back to ${BUST_RESET_SCORE}.</p>
+            <p>${modeCopy(`Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS is a walk-out loss. Under 7 gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot busts back to ${BUST_RESET_SCORE}.`, `Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS ends the game. Under 7 gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot resets to ${BUST_RESET_SCORE}.`)}</p>
           </section>
         </aside>
       </section>
@@ -284,6 +309,13 @@ function bindActions() {
   root.querySelector('[data-action="music"]')?.addEventListener('click', () => {
     runSingleClickAction('music', () => toggleMusic());
   });
+  root.querySelector('[data-action="tone-mode"]')?.addEventListener('click', () => {
+    runSingleClickAction('tone-mode', () => {
+      state.toneMode = isAdultMode() ? 'pg' : 'adult';
+      stopActiveCallout();
+      render();
+    });
+  });
   root.querySelector('[data-action="music-volume"]')?.addEventListener('input', (event) => {
     setMusicVolume(event.target.value);
   });
@@ -312,6 +344,23 @@ function bindPageAudioGuards() {
 
 function isActiveGameTab() {
   return document.visibilityState === 'visible';
+}
+
+function isAdultMode() {
+  return state.toneMode === 'adult';
+}
+
+function modeCopy(adultCopy, pgCopy) {
+  return isAdultMode() ? adultCopy : pgCopy;
+}
+
+function displayCopy(value) {
+  const text = String(value ?? '');
+  if (isAdultMode()) {
+    return text;
+  }
+
+  return PG_REPLACEMENTS.reduce((copy, [pattern, replacement]) => copy.replace(pattern, replacement), text);
 }
 
 function runSingleClickAction(action, callback) {
@@ -452,6 +501,7 @@ function resetGame() {
   state.current = null;
   state.history = [];
   state.boofballs = 0;
+  state.lastCalloutByType = {};
   render();
 }
 
@@ -610,13 +660,13 @@ function hypeBanner(hype) {
   return `
     <div class="showdown-banner ${hype.tone}" aria-live="polite">
       <div>
-        <span>${hype.kicker}</span>
-        <strong>${hype.title}</strong>
-        <p>${hype.body}</p>
+        <span>${displayCopy(hype.kicker)}</span>
+        <strong>${displayCopy(hype.title)}</strong>
+        <p>${displayCopy(hype.body)}</p>
       </div>
       ${pills.length ? `
         <div class="hype-pills">
-          ${pills.map((pill) => `<b>${pill}</b>`).join('')}
+          ${pills.map((pill) => `<b>${displayCopy(pill)}</b>`).join('')}
         </div>
       ` : ''}
     </div>
@@ -649,8 +699,8 @@ function messageBurst(hype, current) {
 
   return `
     <div class="message-burst ${hype.tone}" aria-hidden="true">
-      <span>${hype.kicker}</span>
-      <strong>${burst}</strong>
+      <span>${displayCopy(hype.kicker)}</span>
+      <strong>${displayCopy(burst)}</strong>
       <em>${symbol}</em>
       <i></i>
       <i></i>
@@ -671,9 +721,9 @@ function winCelebration(current, gameWon) {
     <section class="win-fanfare ${perfect ? 'jackpot' : 'exact'}" aria-live="polite">
       <div class="win-rays" aria-hidden="true"></div>
       <div class="win-copy">
-        <span>${perfect ? 'Perfect hand locked' : 'Exact bank locked'}</span>
-        <strong>${perfect ? 'NINE SIX BITCH' : 'BANK 96'}</strong>
-        <p>${perfect ? '9, 6, Queen. The room goes off.' : 'Exact 96. Clean landing. Big table energy.'}</p>
+        <span>${displayCopy(perfect ? 'Perfect hand locked' : 'Exact bank locked')}</span>
+        <strong>${displayCopy(perfect ? 'NINE SIX BITCH' : 'BANK 96')}</strong>
+        <p>${modeCopy(perfect ? '9, 6, Queen. The room goes off.' : 'Exact 96. Clean landing. Big table energy.', perfect ? '9, 6, Queen. The table celebrates.' : 'Exact 96. Clean landing. Big table energy.')}</p>
       </div>
       <div class="win-chip-rain" aria-hidden="true">
         ${chips.map((chip, index) => `<i style="--i:${index}">${chip}</i>`).join('')}
@@ -1040,10 +1090,10 @@ function boofballStacker(current) {
         ${Array.from({ length: BOOFBALL_LIMIT }, (_, index) => {
           const filled = index < count;
           const isLatest = current.boofballHit && index === count - 1;
-          return `<i class="${filled ? 'filled' : ''} ${isLatest ? 'latest' : ''}"><b>${letters[index]}</b></i>`;
+          return `<i class="${filled ? 'filled' : 'empty'} ${isLatest ? 'latest' : ''}">${filled ? `<b>${letters[index]}</b>` : '<b></b>'}</i>`;
         }).join('')}
       </div>
-      <p>${isWalkOut ? 'Walk the fuck out. You lose.' : current.boofballHit ? 'That NO SCORE hand added a BOOFBALL.' : `${BOOFBALL_LIMIT - count} until the walk.`}</p>
+      <p>${displayCopy(isWalkOut ? 'Walk the fuck out. You lose.' : current.boofballHit ? 'That NO SCORE hand added a BOOFBALL.' : `${BOOFBALL_LIMIT - count} until the walk.`)}</p>
     </section>
   `;
 }
@@ -1062,8 +1112,8 @@ function messageList(current, gameWon, gameLost) {
 
   return messages.map((message, index) => `
     <article class="${index === 0 && gameWon ? 'win' : index === 0 && gameLost ? 'walkout' : index === 0 ? tone : ''}">
-      <span>${index === 0 && gameWon ? (isPerfectNineSix(current) ? 'Perfect roll' : 'Bank 96') : index === 0 && gameLost ? 'Walk-out loss' : index === 0 ? current.hype?.kicker ?? 'Call' : 'Call'}</span>
-      <strong>${message}</strong>
+      <span>${displayCopy(index === 0 && gameWon ? (isPerfectNineSix(current) ? 'Perfect roll' : 'Bank 96') : index === 0 && gameLost ? 'Walk-out loss' : index === 0 ? current.hype?.kicker ?? 'Call' : 'Call')}</span>
+      <strong>${displayCopy(message)}</strong>
     </article>
   `).join('');
 }
@@ -1192,6 +1242,10 @@ function isNoScoreHand(turn) {
 
 function outcomeVoiceRoute(turn) {
   if (isPerfectNineSix(turn)) {
+    if (!isAdultMode()) {
+      return null;
+    }
+
     return {
       type: 'perfect-nine-six',
       callouts: JACKPOT_CALLOUTS,
@@ -1200,10 +1254,10 @@ function outcomeVoiceRoute(turn) {
     };
   }
 
-  if (isNoScoreHand(turn)) {
+  if (turn?.boofballHit && isNoScoreHand(turn)) {
     return {
-      type: 'no-score-boofball',
-      callouts: NO_SCORE_CALLOUTS,
+      type: 'boofball-boo',
+      callouts: BOOFBALL_CALLOUTS,
       volume: 0.9,
       delay: 260
     };
@@ -1214,11 +1268,11 @@ function outcomeVoiceRoute(turn) {
 
 function canPlayCalloutType(type) {
   if (type === 'perfect-nine-six') {
-    return isPerfectNineSix(state.current);
+    return isAdultMode() && isPerfectNineSix(state.current);
   }
 
-  if (type === 'no-score-boofball') {
-    return isNoScoreHand(state.current);
+  if (type === 'boofball-boo') {
+    return Boolean(state.current?.boofballHit) && isNoScoreHand(state.current);
   }
 
   if (type === 'bank-bust-horn') {
@@ -1424,7 +1478,7 @@ function playRandomCallout(callouts, volume, type) {
   }
 
   stopActiveCallout();
-  const src = callouts[randomInt(0, callouts.length - 1)];
+  const src = pickRandomSource(callouts, type);
   const callout = new Audio(src);
   callout.volume = volume;
   callout.dataset.nineSixVoice = type;
@@ -1440,6 +1494,18 @@ function playRandomCallout(callouts, volume, type) {
       state.calloutAudio = null;
     }
   });
+}
+
+function pickRandomSource(sources, type) {
+  if (sources.length <= 1) {
+    return sources[0];
+  }
+
+  const lastSource = state.lastCalloutByType[type];
+  const choices = sources.filter((source) => source !== lastSource);
+  const src = choices[randomInt(0, choices.length - 1)] ?? sources[randomInt(0, sources.length - 1)];
+  state.lastCalloutByType[type] = src;
+  return src;
 }
 
 function playTargetHitSound(die) {

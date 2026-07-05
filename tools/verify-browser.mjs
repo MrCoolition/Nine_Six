@@ -157,6 +157,20 @@ const soundAfterDoubleClick = await evalValue('document.querySelector(\'[data-ac
 await pause(760);
 await clickAt(soundCenter);
 const soundAfterRestore = await evalValue('document.querySelector(\'[data-action="sound"]\')?.textContent.trim()');
+const modeCenter = await evalValue(`(() => {
+  const button = document.querySelector('[data-action="tone-mode"]');
+  const rect = button.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+})()`);
+await clickAt(modeCenter);
+await pause(220);
+const pgText = await evalValue('document.body.innerText');
+const pgTextLower = pgText.toLowerCase();
+const modeAfterPg = await evalValue('document.querySelector(\'[data-action="tone-mode"]\')?.textContent.trim()');
+await pause(760);
+await clickAt(modeCenter);
+await pause(220);
+const modeAfterAdult = await evalValue('document.querySelector(\'[data-action="tone-mode"]\')?.textContent.trim()');
 const buttonCenter = await evalValue(`(() => {
   const button = document.querySelector('[data-action="roll"]');
   const rect = button.getBoundingClientRect();
@@ -193,6 +207,11 @@ const result = {
   overlayState,
   initialButton: buttonCenter.text,
   doubleClickGuarded: soundAfterDoubleClick === 'Sound off' && soundAfterRestore === 'Sound on',
+  modeToggleWorks: modeAfterPg === 'PG'
+    && modeAfterAdult === 'Adult'
+    && pgTextLower.includes('pg tone')
+    && pgTextLower.includes('clean calls')
+    && !/bitch|fuck|bullshit|talk shit|21\+ table/i.test(pgText),
   viewport: {
     width: viewportWidth,
     height: viewportHeight,
@@ -213,6 +232,6 @@ const result = {
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
+if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
   process.exitCode = 1;
 }
