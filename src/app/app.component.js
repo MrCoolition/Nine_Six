@@ -166,17 +166,17 @@ function render() {
 
         <div class="control-stack">
           <div class="control-row">
-            <button type="button" class="primary-action" data-action="roll" ${state.rolling || gameOver ? 'disabled' : ''}>
+            <button type="button" class="primary-action" data-action="roll" data-short="${state.rolling ? 'Deal...' : 'Roll'}" ${state.rolling || gameOver ? 'disabled' : ''}>
               ${state.rolling ? 'Showdown...' : 'Roll hand'}
             </button>
-            <button type="button" class="music-action ${state.musicPlaying ? 'active' : ''}" data-action="music">
+            <button type="button" class="music-action ${state.musicPlaying ? 'active' : ''}" data-action="music" data-short="Track">
               ${state.musicPlaying ? 'Kill track' : 'Drop needle'}
             </button>
-            <button type="button" data-action="reset">Reset</button>
-            <button type="button" data-action="sound" aria-label="Toggle sound">
+            <button type="button" data-action="reset" data-short="Reset">Reset</button>
+            <button type="button" data-action="sound" data-short="${state.muted ? 'Muted' : 'Sound'}" aria-label="Toggle sound">
               ${state.muted ? 'Sound off' : 'Sound on'}
             </button>
-            <button type="button" class="mode-action ${adultMode ? 'adult' : 'pg'}" data-action="tone-mode" aria-pressed="${adultMode ? 'true' : 'false'}">
+            <button type="button" class="mode-action ${adultMode ? 'adult' : 'pg'}" data-action="tone-mode" data-short="${adultMode ? 'Adult' : 'PG'}" aria-pressed="${adultMode ? 'true' : 'false'}">
               ${adultMode ? 'Adult' : 'PG'}
             </button>
           </div>

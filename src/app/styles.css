@@ -2198,3 +2198,511 @@ button {
     font-size: 0.52rem;
   }
 }
+
+@media (max-width: 740px) {
+  html {
+    scroll-padding-bottom: 88px;
+  }
+
+  body {
+    min-width: 320px;
+  }
+
+  button {
+    min-height: 44px;
+    border-radius: 8px;
+    touch-action: manipulation;
+  }
+
+  .game-shell {
+    width: 100%;
+    padding: 0 8px 94px;
+  }
+
+  .score-band {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, 34vw);
+    gap: 8px 10px;
+    min-height: 0;
+    margin: 0 -8px 8px;
+    padding: 8px;
+    border-width: 0 0 1px;
+    border-radius: 0 0 8px 8px;
+  }
+
+  .score-band::before,
+  .table-zone::after,
+  .table-tags,
+  .music-console,
+  .brand-lockup small,
+  .felt-art,
+  .rules-card {
+    display: none;
+  }
+
+  .brand-lockup {
+    gap: 8px;
+    align-items: center;
+  }
+
+  .brand-mark {
+    width: 42px;
+    height: 42px;
+    padding: 6px;
+    font-size: 1rem;
+  }
+
+  .brand-lockup p {
+    font-size: 0.58rem;
+  }
+
+  .brand-lockup h1 {
+    margin-top: 1px;
+    font-size: 1.28rem;
+    line-height: 0.95;
+  }
+
+  .score-meter {
+    align-self: stretch;
+    gap: 5px;
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid rgba(243, 189, 63, 0.2);
+    border-radius: 8px;
+    background: rgba(8, 8, 7, 0.42);
+  }
+
+  .score-meter > div:first-child {
+    align-items: center;
+  }
+
+  .score-meter span {
+    font-size: 0.58rem;
+  }
+
+  .score-meter strong {
+    font-size: 2.1rem;
+  }
+
+  .score-meter small {
+    font-size: 0.62rem;
+    line-height: 1.12;
+  }
+
+  .meter-track {
+    height: 9px;
+    padding: 2px;
+  }
+
+  .control-stack {
+    display: contents;
+  }
+
+  .control-row {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 40;
+    display: grid;
+    grid-template-columns: 1.45fr repeat(4, minmax(0, 0.74fr));
+    gap: 6px;
+    padding: 7px;
+    border: 1px solid rgba(255, 248, 232, 0.18);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, rgba(32, 15, 15, 0.96), rgba(7, 18, 13, 0.96)),
+      rgba(8, 8, 7, 0.92);
+    box-shadow:
+      inset 0 0 0 1px rgba(243, 189, 63, 0.08),
+      0 -18px 44px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(10px);
+  }
+
+  .control-row button {
+    min-width: 0;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 6px;
+    overflow: hidden;
+    font-size: 0;
+    white-space: nowrap;
+  }
+
+  .control-row button::after {
+    content: attr(data-short);
+    font-size: 0.72rem;
+    font-weight: 950;
+  }
+
+  .control-row .primary-action {
+    min-height: 52px;
+  }
+
+  .control-row .primary-action::after {
+    font-size: 0.94rem;
+  }
+
+  .play-layout {
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .table-zone {
+    gap: 9px;
+    min-height: 0;
+    padding: 8px;
+    border-width: 5px;
+  }
+
+  .dice-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .die-card {
+    min-height: 166px;
+    gap: 8px;
+    padding: 9px 7px;
+  }
+
+  .die-card:hover {
+    transform: none;
+  }
+
+  .die-card header {
+    align-items: start;
+    gap: 5px;
+  }
+
+  .die-card span {
+    font-size: 0.58rem;
+  }
+
+  .die-card strong {
+    max-width: 58px;
+    font-size: 0.72rem;
+    line-height: 1.05;
+    text-align: right;
+  }
+
+  .die-card footer {
+    display: none;
+  }
+
+  .die-shape {
+    width: min(76px, 84%);
+    filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.34));
+  }
+
+  .die-shape b {
+    font-size: 2.35rem;
+  }
+
+  .card-face {
+    width: min(76px, 82%);
+    border-radius: 10px;
+    filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.34));
+  }
+
+  .card-face::before {
+    inset: 7px;
+    border-radius: 7px;
+  }
+
+  .card-face::after,
+  .card-watermark,
+  .card-pip,
+  .card-center small,
+  .card-center i {
+    display: none;
+  }
+
+  .card-center {
+    width: 78%;
+    box-shadow: inset 0 0 16px rgba(255, 232, 151, 0.22);
+  }
+
+  .card-center b {
+    font-size: 2.9rem;
+  }
+
+  .card-corner {
+    min-width: 21px;
+    padding: 2px;
+    border-radius: 5px;
+  }
+
+  .card-corner b {
+    font-size: 0.68rem;
+  }
+
+  .card-corner small {
+    font-size: 0.62rem;
+  }
+
+  .card-corner.top {
+    top: 7px;
+    left: 7px;
+  }
+
+  .card-corner.bottom {
+    right: 7px;
+    bottom: 7px;
+  }
+
+  .showdown-banner {
+    gap: 8px;
+    margin-top: 0;
+    padding: 10px;
+  }
+
+  .showdown-banner strong {
+    font-size: 1.12rem;
+  }
+
+  .showdown-banner p {
+    font-size: 0.76rem;
+    line-height: 1.22;
+  }
+
+  .hype-pills {
+    gap: 5px;
+  }
+
+  .hype-pills b {
+    min-height: 21px;
+    padding: 3px 6px;
+    font-size: 0.53rem;
+  }
+
+  .message-burst {
+    min-height: 58px;
+    margin-top: 0;
+  }
+
+  .message-burst span {
+    font-size: 0.56rem;
+  }
+
+  .message-burst strong {
+    font-size: clamp(1.28rem, 8vw, 1.82rem);
+  }
+
+  .message-burst em {
+    right: 8px;
+    bottom: -8px;
+    font-size: 3.2rem;
+  }
+
+  .message-burst i {
+    width: 6px;
+    height: 30px;
+  }
+
+  .turn-panel {
+    grid-template-columns: minmax(74px, 0.38fr) minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .turn-panel span {
+    font-size: 0.58rem;
+  }
+
+  .turn-panel strong {
+    font-size: 1.05rem;
+  }
+
+  .turn-panel p {
+    font-size: 0.84rem;
+    line-height: 1.2;
+  }
+
+  .side-panel {
+    gap: 9px;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .stat-grid article {
+    min-height: 66px;
+    padding: 9px 7px;
+  }
+
+  .stat-grid span {
+    font-size: 0.55rem;
+  }
+
+  .stat-grid strong {
+    font-size: 1.25rem;
+  }
+
+  .boofball-card,
+  .score-card {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .score-card {
+    margin-top: 76px;
+  }
+
+  .boofball-card header span,
+  .score-card span,
+  .score-card dt {
+    font-size: 0.58rem;
+  }
+
+  .boofball-card header strong {
+    font-size: 1.16rem;
+  }
+
+  .boofball-stack {
+    gap: 7px;
+  }
+
+  .boofball-stack b {
+    font-size: 1.2rem;
+  }
+
+  .boofball-card p {
+    font-size: 0.78rem;
+  }
+
+  .score-card header strong {
+    font-size: 1.35rem;
+  }
+
+  .score-breakdown {
+    gap: 5px;
+  }
+
+  .score-breakdown div,
+  .final-score {
+    padding-block: 7px;
+  }
+
+  .score-card dd,
+  .final-score strong {
+    font-size: 1.1rem;
+  }
+
+  .event-strip {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    margin-top: 10px;
+  }
+
+  .event-strip article {
+    min-height: 0;
+    padding: 10px;
+  }
+
+  .event-strip strong {
+    font-size: 0.88rem;
+    line-height: 1.22;
+  }
+
+  .history-section {
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .history-section header {
+    gap: 3px;
+  }
+
+  .history-section h2 {
+    font-size: 1rem;
+  }
+
+  .empty-history {
+    padding: 12px;
+  }
+
+  .win-fanfare {
+    min-height: 108px;
+    margin-top: 0;
+  }
+
+  .win-copy {
+    padding: 14px 10px;
+  }
+
+  .win-copy strong {
+    font-size: 1.72rem;
+  }
+
+  .win-copy p {
+    font-size: 0.78rem;
+  }
+
+  .die-card.target-hit::after {
+    right: 6px;
+    top: 31px;
+    padding: 3px 5px;
+    font-size: 0.48rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .game-shell {
+    padding-inline: 6px;
+  }
+
+  .score-band {
+    margin-inline: -6px;
+    grid-template-columns: minmax(0, 1fr) 104px;
+  }
+
+  .control-row {
+    left: 6px;
+    right: 6px;
+    gap: 5px;
+  }
+
+  .control-row button::after {
+    font-size: 0.66rem;
+  }
+
+  .control-row .primary-action::after {
+    font-size: 0.86rem;
+  }
+
+  .dice-row {
+    gap: 5px;
+  }
+
+  .die-card {
+    min-height: 154px;
+    padding: 8px 5px;
+  }
+
+  .die-card strong {
+    max-width: 48px;
+    font-size: 0.66rem;
+  }
+
+  .die-shape,
+  .card-face {
+    width: min(68px, 82%);
+  }
+
+  .die-shape b {
+    font-size: 2.08rem;
+  }
+
+  .card-center b {
+    font-size: 2.55rem;
+  }
+
+  .stat-grid {
+    gap: 5px;
+  }
+}

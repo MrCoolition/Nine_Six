@@ -121,6 +121,26 @@ async function clickAt(point) {
   });
 }
 
+async function waitForRollSettled(timeoutMs = 15000) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = await evalValue(`(() => ({
+      roll: document.querySelector('.turn-panel strong')?.textContent?.trim() || '',
+      rolling: document.querySelector('[data-action="roll"]')?.textContent?.includes('Showdown') || false,
+      disabled: document.querySelector('[data-action="roll"]')?.disabled || false
+    }))()`);
+
+    if (!result.rolling && /\[[^\?]+\]/.test(result.roll)) {
+      return result;
+    }
+
+    await pause(160);
+  }
+
+  throw new Error('Timed out waiting for roll to settle');
+}
+
 await cdp('Page.enable');
 await cdp('Runtime.enable');
 await cdp('Log.enable');
@@ -146,6 +166,40 @@ const overlayState = await evalValue(
   'document.querySelector("[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay") ? "ERROR_OVERLAY" : "OK"'
 );
 const beforePath = await saveScreenshot(`${screenshotPrefix}-before-roll.png`);
+const layoutMetrics = await evalValue(`(() => {
+  const cards = Array.from(document.querySelectorAll('.die-card')).map((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      top: Math.round(rect.top),
+      left: Math.round(rect.left),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      bottom: Math.round(rect.bottom)
+    };
+  });
+  const rollButton = document.querySelector('[data-action="roll"]');
+  const rollRect = rollButton.getBoundingClientRect();
+  const controlRow = document.querySelector('.control-row');
+  const controlRect = controlRow.getBoundingClientRect();
+  const tableRect = document.querySelector('.table-zone').getBoundingClientRect();
+  const scoreRect = document.querySelector('.score-band').getBoundingClientRect();
+  return {
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    scrollWidth: document.documentElement.scrollWidth,
+    cards,
+    diceInSingleRow: cards.length === 3 && Math.max(...cards.map((card) => card.top)) - Math.min(...cards.map((card) => card.top)) <= 8,
+    visibleDiceOnFirstScreen: cards.length === 3 && cards.every((card) => card.top >= 0 && card.bottom < window.innerHeight - 86),
+    minCardWidth: Math.min(...cards.map((card) => card.width)),
+    rollButtonHeight: Math.round(rollRect.height),
+    rollBottomGap: Math.round(window.innerHeight - rollRect.bottom),
+    controlPosition: getComputedStyle(controlRow).position,
+    controlHeight: Math.round(controlRect.height),
+    scoreBandHeight: Math.round(scoreRect.height),
+    tableTop: Math.round(tableRect.top),
+    noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth + 2
+  };
+})()`);
 const soundCenter = await evalValue(`(() => {
   const button = document.querySelector('[data-action="sound"]');
   const rect = button.getBoundingClientRect();
@@ -178,7 +232,8 @@ const buttonCenter = await evalValue(`(() => {
 })()`);
 
 await clickAt(buttonCenter);
-await pause(10200);
+await waitForRollSettled();
+await pause(360);
 
 const rollList = await evalValue('document.querySelector(".turn-panel strong").textContent.trim()');
 const total = await evalValue('document.querySelector(".score-meter strong").textContent.trim()');
@@ -195,7 +250,7 @@ socket.close();
 const result = {
   title,
   loaded: bodyText.includes('NINE SIX') && bodyText.includes('Roll'),
-  hasCorrectTable: bodyText.includes('The hand is 9, 6, Queen')
+  hasCorrectTable: (viewportMobile || bodyText.includes('The hand is 9, 6, Queen'))
     && faceLabels.join('|') === 'Nine die|Six die|Playing card',
   hasFaceCardSlot: bodyText.includes('Face cards only') || afterText.includes('Face cards only') || cardFooter.includes('Face cards only'),
   hasFaceCardRoll: Boolean(rollCard),
@@ -203,15 +258,25 @@ const result = {
   hasNoAutoRoll: !hasAutoRoll,
   hasNoCardRibbon: !hasCardRibbon,
   hasNoHuntCopy: !/\bhunt\b/i.test(bodyText),
-  hasMusic: bodyText.includes('Snake Eyes High Stakes') && audioSrc.includes('snake-eyes-high-stakes.wav'),
+  hasMusic: audioSrc.includes('snake-eyes-high-stakes.wav') && (viewportMobile || bodyText.includes('Snake Eyes High Stakes')),
   overlayState,
+  layoutMetrics,
   initialButton: buttonCenter.text,
   doubleClickGuarded: soundAfterDoubleClick === 'Sound off' && soundAfterRestore === 'Sound on',
   modeToggleWorks: modeAfterPg === 'PG'
     && modeAfterAdult === 'Adult'
-    && pgTextLower.includes('pg tone')
-    && pgTextLower.includes('clean calls')
+    && (viewportMobile || (pgTextLower.includes('pg tone') && pgTextLower.includes('clean calls')))
+    && (!viewportMobile || pgText.includes('NINE SIX / PG TABLE'))
     && !/bitch|fuck|bullshit|talk shit|21\+ table/i.test(pgText),
+  mobileLayoutOk: !viewportMobile || (
+    layoutMetrics.noHorizontalOverflow
+    && layoutMetrics.diceInSingleRow
+    && layoutMetrics.visibleDiceOnFirstScreen
+    && layoutMetrics.minCardWidth >= 86
+    && layoutMetrics.controlPosition === 'fixed'
+    && layoutMetrics.rollButtonHeight >= 48
+    && layoutMetrics.rollBottomGap <= 18
+  ),
   viewport: {
     width: viewportWidth,
     height: viewportHeight,
@@ -232,6 +297,6 @@ const result = {
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
+if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
   process.exitCode = 1;
 }
