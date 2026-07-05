@@ -1,0 +1,5 @@
+artifacts/
+dist/
+*.log
+*.pid
+.deploy-path
