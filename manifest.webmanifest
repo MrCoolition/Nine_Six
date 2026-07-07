@@ -1,0 +1,20 @@
+{
+  "name": "NINE SIX",
+  "short_name": "NINE SIX",
+  "description": "A fictional-chip dice and card table game. Hit 9, 6, Queen.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080605",
+  "theme_color": "#12170f",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "./src/assets/nine-six-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

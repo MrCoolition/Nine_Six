@@ -11,6 +11,8 @@ if (existsSync(dist)) {
 
 mkdirSync(dist, { recursive: true });
 cpSync(resolve(root, 'index.html'), resolve(dist, 'index.html'));
+cpSync(resolve(root, 'manifest.webmanifest'), resolve(dist, 'manifest.webmanifest'));
+cpSync(resolve(root, 'service-worker.js'), resolve(dist, 'service-worker.js'));
 cpSync(resolve(root, 'src'), resolve(dist, 'src'), { recursive: true });
 
 console.log(`Built NINE SIX static assets at ${dist}`);

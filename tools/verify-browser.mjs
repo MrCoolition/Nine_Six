@@ -156,12 +156,14 @@ await pause(1200);
 
 const title = await evalValue('document.title');
 const bodyText = await evalValue('document.body.innerText');
+const bodyTextLower = bodyText.toLowerCase();
 const faceLabels = await evalValue(
   'Array.from(document.querySelectorAll(".die-card header strong")).map((node) => node.textContent.trim())'
 );
 const hasAutoRoll = await evalValue('Boolean(document.querySelector(\'[data-action="auto"]\')) || document.body.innerText.includes("Run table")');
 const hasCardRibbon = await evalValue('Boolean(document.querySelector(".card-ribbon"))');
 const audioSrc = await evalValue('document.querySelector("#music-track")?.getAttribute("src") || ""');
+const manifestHref = await evalValue('document.querySelector(\'link[rel="manifest"]\')?.getAttribute("href") || ""');
 const overlayState = await evalValue(
   'document.querySelector("[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay") ? "ERROR_OVERLAY" : "OK"'
 );
@@ -180,6 +182,7 @@ const layoutMetrics = await evalValue(`(() => {
   const rollButton = document.querySelector('[data-action="roll"]');
   const rollRect = rollButton.getBoundingClientRect();
   const controlRow = document.querySelector('.control-row');
+  const controls = Array.from(controlRow.querySelectorAll('button')).map((button) => button.dataset.action);
   const controlRect = controlRow.getBoundingClientRect();
   const tableRect = document.querySelector('.table-zone').getBoundingClientRect();
   const scoreRect = document.querySelector('.score-band').getBoundingClientRect();
@@ -194,6 +197,7 @@ const layoutMetrics = await evalValue(`(() => {
     rollButtonHeight: Math.round(rollRect.height),
     rollBottomGap: Math.round(window.innerHeight - rollRect.bottom),
     controlPosition: getComputedStyle(controlRow).position,
+    controls,
     controlHeight: Math.round(controlRect.height),
     scoreBandHeight: Math.round(scoreRect.height),
     tableTop: Math.round(tableRect.top),
@@ -259,6 +263,12 @@ const result = {
   hasNoCardRibbon: !hasCardRibbon,
   hasNoHuntCopy: !/\bhunt\b/i.test(bodyText),
   hasMusic: audioSrc.includes('snake-eyes-high-stakes.wav') && (viewportMobile || bodyText.includes('Snake Eyes High Stakes')),
+  hasViralFeatures: bodyTextLower.includes('daily table')
+    && bodyTextLower.includes('odds / fairness')
+    && bodyTextLower.includes('progression')
+    && bodyTextLower.includes('fictional bankroll')
+    && bodyTextLower.includes('fictional chips'),
+  hasPwa: manifestHref.includes('manifest.webmanifest'),
   overlayState,
   layoutMetrics,
   initialButton: buttonCenter.text,
@@ -276,6 +286,7 @@ const result = {
     && layoutMetrics.controlPosition === 'fixed'
     && layoutMetrics.rollButtonHeight >= 48
     && layoutMetrics.rollBottomGap <= 18
+    && layoutMetrics.controls.includes('daily')
   ),
   viewport: {
     width: viewportWidth,
@@ -297,6 +308,6 @@ const result = {
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
+if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.hasViralFeatures || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
   process.exitCode = 1;
 }

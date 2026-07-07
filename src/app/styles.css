@@ -83,6 +83,12 @@ button:disabled {
   background: linear-gradient(180deg, rgba(66, 201, 137, 0.2), rgba(13, 42, 31, 0.68));
 }
 
+.daily-action.active {
+  color: #08150f;
+  border-color: rgba(52, 245, 166, 0.82);
+  background: linear-gradient(180deg, #7cffc2, #34f5a6);
+}
+
 .boot-shell {
   min-height: 100vh;
   display: grid;
@@ -905,9 +911,227 @@ tbody tr:last-child td {
   color: var(--ink);
 }
 
+.share-card,
+.viral-console {
+  margin-top: 18px;
+}
+
+.share-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(243, 189, 63, 0.32);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(75, 16, 24, 0.74), rgba(8, 42, 28, 0.78)),
+    rgba(23, 19, 15, 0.78);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 16px 42px rgba(0, 0, 0, 0.22);
+}
+
+.share-card.jackpot,
+.share-card.exact {
+  border-color: rgba(52, 245, 166, 0.74);
+  box-shadow:
+    inset 0 0 0 1px rgba(52, 245, 166, 0.16),
+    0 0 46px rgba(52, 245, 166, 0.14),
+    0 16px 42px rgba(0, 0, 0, 0.22);
+}
+
+.share-card.walkout {
+  border-color: rgba(255, 54, 93, 0.78);
+}
+
+.share-card span,
+.feature-card header span,
+.feature-card dt,
+.feature-card small,
+.bankroll-line span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.share-card strong {
+  display: block;
+  color: var(--ink);
+  font-size: clamp(1.1rem, 2vw, 1.6rem);
+  line-height: 1.05;
+}
+
+.share-card p {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+
+.share-card button,
+.feature-card button {
+  color: #17130f;
+  background: linear-gradient(180deg, #ffe27d, var(--gold));
+  border-color: #ffd86d;
+}
+
+.viral-console {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.feature-card {
+  min-height: 246px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(16, 12, 10, 0.92), rgba(37, 13, 15, 0.76)),
+    rgba(23, 19, 15, 0.78);
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 189, 63, 0.07),
+    0 16px 42px rgba(0, 0, 0, 0.2);
+}
+
+.feature-card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.feature-card header strong {
+  color: var(--gold);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.feature-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.daily-code {
+  padding: 10px 12px;
+  border: 1px dashed rgba(52, 245, 166, 0.46);
+  border-radius: 8px;
+  color: #d7ffe9;
+  background: rgba(6, 54, 35, 0.46);
+  font-size: 0.8rem;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.feature-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.feature-card dl div,
+.odds-grid b {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.feature-card dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.02rem;
+  font-weight: 950;
+}
+
+.odds-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.odds-grid b {
+  color: var(--ink);
+  font-size: 1.04rem;
+}
+
+.odds-grid span {
+  color: var(--muted);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+}
+
+.bankroll-line {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bankroll-line b {
+  color: var(--gold);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.rank-meter {
+  height: 10px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.rank-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--neon-red), var(--gold), var(--neon));
+}
+
+.unlock-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.unlock-row span {
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.unlock-row span.unlocked {
+  color: #08150f;
+  border-color: rgba(52, 245, 166, 0.74);
+  background: linear-gradient(90deg, #34f5a6, #f3bd3f);
+}
+
+.rank-3 .table-zone,
+.rank-4 .table-zone {
+  border-color: rgba(52, 245, 166, 0.62);
+}
+
 @media (max-width: 1080px) {
   .score-band,
   .play-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .viral-console {
     grid-template-columns: 1fr;
   }
 
@@ -2307,7 +2531,7 @@ button {
     bottom: max(8px, env(safe-area-inset-bottom));
     z-index: 40;
     display: grid;
-    grid-template-columns: 1.45fr repeat(4, minmax(0, 0.74fr));
+    grid-template-columns: 1.38fr repeat(5, minmax(0, 0.68fr));
     gap: 6px;
     padding: 7px;
     border: 1px solid rgba(255, 248, 232, 0.18);
@@ -2597,6 +2821,84 @@ button {
     grid-template-columns: 1fr;
     gap: 7px;
     margin-top: 10px;
+  }
+
+  .share-card,
+  .viral-console {
+    margin-top: 10px;
+  }
+
+  .share-card {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 10px;
+  }
+
+  .share-card strong {
+    font-size: 1rem;
+  }
+
+  .share-card p {
+    font-size: 0.78rem;
+    line-height: 1.22;
+  }
+
+  .share-card button {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .viral-console {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .feature-card {
+    min-height: 0;
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .feature-card header strong {
+    font-size: 1rem;
+  }
+
+  .feature-card p {
+    font-size: 0.78rem;
+  }
+
+  .feature-card dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .feature-card dl div,
+  .odds-grid b {
+    padding: 7px;
+  }
+
+  .daily-code {
+    padding: 8px;
+    font-size: 0.68rem;
+  }
+
+  .odds-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .odds-grid b {
+    font-size: 0.85rem;
+  }
+
+  .bankroll-line b {
+    font-size: 1.5rem;
+  }
+
+  .unlock-row span {
+    padding: 4px 7px;
+    font-size: 0.6rem;
   }
 
   .event-strip article {

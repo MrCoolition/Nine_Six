@@ -5,10 +5,41 @@ const BOOFBALL_LIMIT = 4;
 const MUSIC_TITLE = 'Snake Eyes High Stakes';
 const JACKPOT_HAND = '9, 6, Q';
 const HISTORY_LIMIT = 14;
+const STORAGE_KEY = 'nine-six-player-v2';
+const DAILY_NAMESPACE = 'NINE-SIX-DAILY';
 const REVEAL_SPINS = 11;
 const REVEAL_DURATION_MS = 3000;
 const ENABLE_SYNTH_SFX = false;
 const ENABLE_ROLL_SPIN_SFX = false;
+const ODDS = {
+  totalHands: 162,
+  perfect: '1 / 162',
+  perfectPercent: '0.62%',
+  boofball: '40 / 162',
+  boofballPercent: '24.69%',
+  scoring: '122 / 162',
+  scoringPercent: '75.31%',
+  x9: '68 / 162',
+  x9Percent: '41.98%',
+  sessionWinPercent: '40.81%',
+  sessionLossPercent: '59.19%',
+  averageTurns: '12.25',
+  expectedPayout: '192 fictional chips',
+  anteWarning: '25 chip ante is entertainment math only. Chips have no cash value.'
+};
+const RANKS = [
+  { name: 'Corner Stool', minXp: 0 },
+  { name: 'Felt Regular', minXp: 120 },
+  { name: 'Rail Menace', minXp: 360 },
+  { name: 'Backroom Boss', minXp: 760 },
+  { name: 'NINE SIX Legend', minXp: 1400 }
+];
+const UNLOCKS = [
+  { label: 'Gold dice skin', at: 120 },
+  { label: 'Neon queen cards', at: 360 },
+  { label: 'Boo Choir pack', at: 760 },
+  { label: 'Legend table felt', at: 1400 }
+];
 const JACKPOT_CALLOUTS = [
   './src/assets/jackpot-bradford.mp3',
   './src/assets/jackpot-gael.mp3',
@@ -99,13 +130,18 @@ const state = {
   round: 0,
   rolling: false,
   muted: false,
+  playMode: 'free',
   toneMode: 'adult',
   musicPlaying: false,
   musicVolume: 0.45,
   musicError: '',
+  shareNotice: '',
+  dailySeed: dailySeedForDate(),
+  dailyRollIndex: 0,
   current: null,
   history: [],
   boofballs: 0,
+  stats: loadPlayerStats(),
   rollToken: 0,
   audioContext: null,
   activeTones: [],
@@ -121,6 +157,7 @@ const state = {
 const root = document.querySelector('#game-root');
 
 bindPageAudioGuards();
+registerServiceWorker();
 render();
 
 function render() {
@@ -139,9 +176,10 @@ function render() {
   const musicVolume = Math.round(state.musicVolume * 100);
   const targetGap = Math.max(0, TARGET_SCORE - state.totalScore);
   const adultMode = isAdultMode();
+  const playerRank = rankForXp(state.stats.xp);
 
   root.innerHTML = `
-    <main class="game-shell ${moodClass} ${rollingClass} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''}">
+    <main class="game-shell ${moodClass} ${rollingClass} rank-${playerRank.index} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''}">
       <section class="score-band" aria-label="NINE SIX scoreboard">
         <div class="brand-lockup">
           <div class="brand-mark" aria-hidden="true">
@@ -178,6 +216,9 @@ function render() {
             </button>
             <button type="button" class="mode-action ${adultMode ? 'adult' : 'pg'}" data-action="tone-mode" data-short="${adultMode ? 'Adult' : 'PG'}" aria-pressed="${adultMode ? 'true' : 'false'}">
               ${adultMode ? 'Adult' : 'PG'}
+            </button>
+            <button type="button" class="daily-action ${state.playMode === 'daily' ? 'active' : ''}" data-action="daily" data-short="${state.playMode === 'daily' ? 'Daily' : 'Free'}" ${state.rolling ? 'disabled' : ''}>
+              ${state.playMode === 'daily' ? 'Daily on' : 'Free play'}
             </button>
           </div>
           <div class="table-tags" aria-label="Table tone">
@@ -277,6 +318,9 @@ function render() {
         ${messageList(current, gameWon, gameLost)}
       </section>
 
+      ${shareCard(current, gameWon, gameLost)}
+      ${viralConsole(current)}
+
       <section class="history-section" aria-label="Turn history">
         <header>
           <span>Log</span>
@@ -316,6 +360,15 @@ function bindActions() {
       render();
     });
   });
+  root.querySelector('[data-action="daily"]')?.addEventListener('click', () => {
+    runSingleClickAction('daily', () => toggleDailyMode());
+  });
+  root.querySelector('[data-action="share"]')?.addEventListener('click', () => {
+    runSingleClickAction('share', () => shareCurrentMoment());
+  });
+  root.querySelector('[data-action="install"]')?.addEventListener('click', () => {
+    runSingleClickAction('install', () => installPromptHint());
+  });
   root.querySelector('[data-action="music-volume"]')?.addEventListener('input', (event) => {
     setMusicVolume(event.target.value);
   });
@@ -342,6 +395,16 @@ function bindPageAudioGuards() {
   });
 }
 
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  });
+}
+
 function isActiveGameTab() {
   return document.visibilityState === 'visible';
 }
@@ -363,6 +426,148 @@ function displayCopy(value) {
   return PG_REPLACEMENTS.reduce((copy, [pattern, replacement]) => copy.replace(pattern, replacement), text);
 }
 
+function defaultPlayerStats() {
+  return {
+    bankroll: 960,
+    xp: 0,
+    sessions: 0,
+    turns: 0,
+    wins: 0,
+    perfects: 0,
+    walkouts: 0,
+    boofballs: 0,
+    monsterHands: 0,
+    bestBank: 0,
+    bestHand: 0,
+    daily: {
+      date: dailyLabel(),
+      plays: 0,
+      bestBank: 0
+    }
+  };
+}
+
+function loadPlayerStats() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    return {
+      ...defaultPlayerStats(),
+      ...stored,
+      daily: {
+        ...defaultPlayerStats().daily,
+        ...(stored?.daily ?? {})
+      }
+    };
+  } catch {
+    return defaultPlayerStats();
+  }
+}
+
+function savePlayerStats() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.stats));
+  } catch {
+    // Local progress is optional.
+  }
+}
+
+function recordSettledTurn(turn) {
+  const handScore = turn.handScore ?? turn.finalScore;
+  const wasFirstTurn = turn.round === 1;
+  const fictionalDelta = (turn.tablePayout ?? turn.finalScore * 10) - TABLE_STAKE;
+
+  if (wasFirstTurn) {
+    state.stats.sessions += 1;
+    if (state.playMode === 'daily') {
+      const today = dailyLabel();
+      if (state.stats.daily.date !== today) {
+        state.stats.daily = { date: today, plays: 0, bestBank: 0 };
+      }
+      state.stats.daily.plays += 1;
+    }
+  }
+
+  state.stats.turns += 1;
+  state.stats.bankroll = Math.max(0, state.stats.bankroll + fictionalDelta);
+  state.stats.bestBank = Math.max(state.stats.bestBank, turn.totalAfter ?? 0);
+  state.stats.bestHand = Math.max(state.stats.bestHand, handScore);
+  state.stats.xp += turnXp(turn);
+
+  if (turn.boofballHit) {
+    state.stats.boofballs += 1;
+  }
+  if (handScore >= 45) {
+    state.stats.monsterHands += 1;
+  }
+  if (isPerfectNineSix(turn)) {
+    state.stats.perfects += 1;
+  }
+  if (turn.walkOut) {
+    state.stats.walkouts += 1;
+  }
+  if (turn.exactWin) {
+    state.stats.wins += 1;
+  }
+  if (state.playMode === 'daily') {
+    state.stats.daily.bestBank = Math.max(state.stats.daily.bestBank, turn.totalAfter ?? 0);
+  }
+
+  savePlayerStats();
+}
+
+function turnXp(turn) {
+  let xp = 8 + Math.round((turn.handScore ?? turn.finalScore) / 3);
+  if (turn.boofballHit) xp += 2;
+  if ((turn.handScore ?? turn.finalScore) >= 45) xp += 24;
+  if (turn.targetHits >= 2) xp += 18;
+  if (turn.exactWin) xp += 110;
+  if (isPerfectNineSix(turn)) xp += 220;
+  if (turn.walkOut) xp += 12;
+  return xp;
+}
+
+function rankForXp(xp) {
+  const index = RANKS.reduce((best, rank, rankIndex) => (xp >= rank.minXp ? rankIndex : best), 0);
+  return {
+    index,
+    current: RANKS[index]
+  };
+}
+
+function dailyLabel(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function dailySeedForDate(date = dailyLabel()) {
+  return `${DAILY_NAMESPACE}-${date}`;
+}
+
+function dailyRngForRoll(index) {
+  return mulberry32(hashString(`${state.dailySeed}:${index}`));
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed) {
+  return () => {
+    let value = seed += 0x6D2B79F5;
+    value = Math.imul(value ^ value >>> 15, value | 1);
+    value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+    return ((value ^ value >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('en-US').format(value ?? 0);
+}
+
 function runSingleClickAction(action, callback) {
   const now = Date.now();
   const lastRun = state.actionTimes[action] ?? 0;
@@ -381,6 +586,7 @@ async function rollTurn() {
   }
 
   stopAllAudio();
+  state.shareNotice = '';
 
   const token = ++state.rollToken;
   const result = createTurn();
@@ -450,8 +656,10 @@ async function rollTurn() {
   state.boofballs = settled.boofballsAfter;
   state.round = round;
   state.history = [settled, ...state.history].slice(0, HISTORY_LIMIT);
+  recordSettledTurn(settled);
   state.rolling = false;
 
+  vibrateForTurn(settled);
   playOutcomeSound(settled);
   render();
 }
@@ -501,7 +709,47 @@ function resetGame() {
   state.current = null;
   state.history = [];
   state.boofballs = 0;
+  state.dailyRollIndex = 0;
+  state.shareNotice = '';
   state.lastCalloutByType = {};
+  render();
+}
+
+function toggleDailyMode() {
+  state.playMode = state.playMode === 'daily' ? 'free' : 'daily';
+  state.dailySeed = dailySeedForDate();
+  resetGame();
+}
+
+async function shareCurrentMoment() {
+  const current = state.current ?? emptyTurn();
+  const moment = shareMomentForTurn(current, hasGameWin(), hasGameLoss());
+  const text = moment
+    ? `NINE SIX: ${moment.title} - ${moment.body} ${location.href}`
+    : `NINE SIX Daily Table ${state.dailySeed}. Fictional chips only. ${location.href}`;
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: 'NINE SIX',
+        text
+      });
+      state.shareNotice = 'Shared from the table.';
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      state.shareNotice = 'Share text copied.';
+    } else {
+      state.shareNotice = text;
+    }
+  } catch {
+    state.shareNotice = 'Share cancelled. No chips moved.';
+  }
+
+  render();
+}
+
+function installPromptHint() {
+  state.shareNotice = 'Install from your browser menu: Add to Home Screen. NINE SIX now has PWA files ready.';
   render();
 }
 
@@ -562,9 +810,10 @@ function musicElement() {
 }
 
 function createTurn() {
-  const rollem = randomInt(1, 9);
-  const rollem2 = randomInt(1, 6);
-  const card = drawCard();
+  const rng = state.playMode === 'daily' ? dailyRngForRoll(state.dailyRollIndex++) : Math.random;
+  const rollem = randomInt(1, 9, rng);
+  const rollem2 = randomInt(1, 6, rng);
+  const card = drawCard(rng);
   const scores = [
     9 - rollem,
     6 - rollem2,
@@ -730,6 +979,131 @@ function winCelebration(current, gameWon) {
       </div>
     </section>
   `;
+}
+
+function viralConsole(current) {
+  const rank = rankForXp(state.stats.xp);
+  const nextRank = RANKS[rank.index + 1];
+  const rankProgress = nextRank
+    ? Math.min(100, Math.round(((state.stats.xp - rank.current.minXp) / (nextRank.minXp - rank.current.minXp)) * 100))
+    : 100;
+  const today = dailyLabel();
+  const dailyBest = state.stats.daily?.date === today ? state.stats.daily.bestBank : 0;
+
+  return `
+    <section class="viral-console" aria-label="NINE SIX viral console">
+      <article class="feature-card daily-card">
+        <header>
+          <span>Daily Table</span>
+          <strong>${state.playMode === 'daily' ? 'Live seed' : 'Tap Daily'}</strong>
+        </header>
+        <p>Everyone gets the same ${today} roll stream. Flex the code, beat your own bank, then share the damage.</p>
+        <div class="daily-code">${state.dailySeed}</div>
+        <dl>
+          <div><dt>Mode</dt><dd>${state.playMode === 'daily' ? 'Daily' : 'Free'}</dd></div>
+          <div><dt>Daily best</dt><dd>${dailyBest}</dd></div>
+          <div><dt>Runs</dt><dd>${state.stats.daily?.plays ?? 0}</dd></div>
+        </dl>
+      </article>
+
+      <article class="feature-card odds-card">
+        <header>
+          <span>Odds / Fairness</span>
+          <strong>${ODDS.perfectPercent}</strong>
+        </header>
+        <div class="odds-grid">
+          <b><span>Perfect 9, 6, Q</span>${ODDS.perfect}</b>
+          <b><span>BOOFBALL hand</span>${ODDS.boofballPercent}</b>
+          <b><span>Session win</span>${ODDS.sessionWinPercent}</b>
+          <b><span>Avg session</span>${ODDS.averageTurns} turns</b>
+        </div>
+        <p>${ODDS.anteWarning} Expected payout at this table is ${ODDS.expectedPayout}, so this is not real-money economics.</p>
+      </article>
+
+      <article class="feature-card progress-card">
+        <header>
+          <span>Progression</span>
+          <strong>${rank.current.name}</strong>
+        </header>
+        <div class="bankroll-line">
+          <span>Fictional bankroll</span>
+          <b>${formatNumber(state.stats.bankroll)}</b>
+        </div>
+        <div class="rank-meter"><i style="width: ${rankProgress}%"></i></div>
+        <small>${nextRank ? `${nextRank.minXp - state.stats.xp} XP to ${nextRank.name}` : 'Top table unlocked'}</small>
+        <div class="unlock-row">
+          ${UNLOCKS.map((unlock) => `<span class="${state.stats.xp >= unlock.at ? 'unlocked' : ''}">${unlock.label}</span>`).join('')}
+        </div>
+        <button type="button" data-action="install">Install game</button>
+      </article>
+    </section>
+  `;
+}
+
+function shareCard(current, gameWon, gameLost) {
+  const shareable = shareMomentForTurn(current, gameWon, gameLost);
+  if (!shareable && !state.shareNotice) {
+    return '';
+  }
+
+  return `
+    <section class="share-card ${shareable?.tone ?? 'quiet'}" aria-live="polite">
+      <div>
+        <span>${state.shareNotice ? 'Share status' : 'Share card'}</span>
+        <strong>${state.shareNotice || shareable.title}</strong>
+        ${shareable ? `<p>${shareable.body}</p>` : ''}
+      </div>
+      ${shareable ? '<button type="button" data-action="share">Share</button>' : ''}
+    </section>
+  `;
+}
+
+function shareMomentForTurn(current, gameWon, gameLost) {
+  if (!current || current.phase !== 'settled') {
+    return null;
+  }
+
+  if (isPerfectNineSix(current)) {
+    return {
+      tone: 'jackpot',
+      title: 'Perfect NINE SIX',
+      body: `[${current.rollList.join(', ')}] on ${state.playMode === 'daily' ? state.dailySeed : 'Free Play'}.`
+    };
+  }
+
+  if (gameWon && current.exactWin) {
+    return {
+      tone: 'exact',
+      title: 'Bank hit exact 96',
+      body: `${state.round} turns, ${state.boofballs}/${BOOFBALL_LIMIT} BOOFBALLS, fictional bankroll ${formatNumber(state.stats.bankroll)}.`
+    };
+  }
+
+  if (gameLost) {
+    return {
+      tone: 'walkout',
+      title: 'BOOF walk-out',
+      body: `Four BOOFBALLS ended the table at bank ${state.totalScore}.`
+    };
+  }
+
+  if ((current.handScore ?? current.finalScore) >= 45) {
+    return {
+      tone: 'monster',
+      title: 'Monster x9 hand',
+      body: `[${current.rollList.join(', ')}] paid ${current.tablePayout} fictional chips.`
+    };
+  }
+
+  if (current.targetHits >= 2) {
+    return {
+      tone: 'near',
+      title: 'One piece away',
+      body: `${current.targetLabels.join(' + ')} landed. The table wanted the third piece.`
+    };
+  }
+
+  return null;
 }
 
 function idleHype() {
@@ -1197,17 +1571,17 @@ function scoreLabel(value) {
   return value === null || value === undefined ? '-' : value;
 }
 
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function randomInt(min, max, rng = Math.random) {
+  return Math.floor(rng() * (max - min + 1)) + min;
 }
 
 function spinValue(item) {
   return item.type === 'card' ? drawCard() : randomInt(1, item.sides);
 }
 
-function drawCard() {
-  const rankIndex = randomInt(0, cardRanks.length - 1);
-  const suit = cardSuits[randomInt(0, cardSuits.length - 1)];
+function drawCard(rng = Math.random) {
+  const rankIndex = randomInt(0, cardRanks.length - 1, rng);
+  const suit = cardSuits[randomInt(0, cardSuits.length - 1, rng)];
   const rank = cardRanks[rankIndex];
   return {
     rank,
@@ -1286,6 +1660,24 @@ function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function vibrateForTurn(turn) {
+  if (!navigator.vibrate || state.muted) {
+    return;
+  }
+
+  if (isPerfectNineSix(turn)) {
+    navigator.vibrate([80, 50, 80, 50, 160]);
+  } else if (turn.exactWin) {
+    navigator.vibrate([70, 40, 120]);
+  } else if (turn.walkOut || turn.bankBust) {
+    navigator.vibrate([120, 80, 120]);
+  } else if (turn.boofballHit) {
+    navigator.vibrate([90, 50, 90]);
+  } else if ((turn.handScore ?? turn.finalScore) >= 45) {
+    navigator.vibrate([45, 35, 90]);
+  }
 }
 
 function playOutcomeSound(turn) {
