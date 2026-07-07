@@ -1,10 +1,10 @@
-const CACHE_NAME = 'nine-six-shell-v15';
+const CACHE_NAME = 'nine-six-shell-v16';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './src/app/styles.css?v=20260707-viral-v15',
-  './src/app/app.component.js?v=20260707-viral-v15',
+  './src/app/styles.css?v=20260707-jukebox-v16',
+  './src/app/app.component.js?v=20260707-jukebox-v16',
   './src/assets/nine-six-icon.svg'
 ];
 

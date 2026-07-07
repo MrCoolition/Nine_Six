@@ -2,7 +2,6 @@ const TARGET_SCORE = 96;
 const BUST_RESET_SCORE = 69;
 const TABLE_STAKE = 25;
 const BOOFBALL_LIMIT = 4;
-const MUSIC_TITLE = 'Snake Eyes High Stakes';
 const JACKPOT_HAND = '9, 6, Q';
 const HISTORY_LIMIT = 14;
 const STORAGE_KEY = 'nine-six-player-v2';
@@ -66,6 +65,16 @@ const TUMBLE_DICE_SOUNDS = [
 ];
 const CARD_DEAL_SOUNDS = [
   './src/assets/card-deal-1.wav'
+];
+const JUKEBOX_TRACKS = [
+  ...Array.from({ length: 22 }, (_, index) => ({
+    title: `Groove ${index + 1}`,
+    src: `./src/assets/jukebox-groove-${index + 1}.wav`
+  })),
+  {
+    title: 'Snake Eyes High Stakes',
+    src: './src/assets/snake-eyes-high-stakes.wav'
+  }
 ];
 const PG_REPLACEMENTS = [
   [/NINE SIX BITCH!!!!/g, 'NINE SIX!'],
@@ -135,6 +144,8 @@ const state = {
   musicPlaying: false,
   musicVolume: 0.45,
   musicError: '',
+  musicTrackIndex: 0,
+  musicShuffle: true,
   shareNotice: '',
   dailySeed: dailySeedForDate(),
   dailyRollIndex: 0,
@@ -157,6 +168,7 @@ const state = {
 const root = document.querySelector('#game-root');
 
 bindPageAudioGuards();
+bindMusicEvents();
 registerServiceWorker();
 render();
 
@@ -174,6 +186,8 @@ function render() {
   const tablePot = state.history.reduce((sum, turn) => sum + (turn.tableStake ?? TABLE_STAKE), 0);
   const heatLevel = gameLost ? 'Walked' : gameWon ? 'Paid' : current.card?.rank === 'Q' ? 'Queen' : state.totalScore >= 72 ? 'Hot' : state.round >= 3 ? 'Warm' : 'Cold';
   const musicVolume = Math.round(state.musicVolume * 100);
+  const musicTrack = currentMusicTrack();
+  const musicStatus = state.musicError || `${state.musicPlaying ? 'Now playing' : 'Needle up'} - ${state.musicTrackIndex + 1}/${JUKEBOX_TRACKS.length}`;
   const targetGap = Math.max(0, TARGET_SCORE - state.totalScore);
   const adultMode = isAdultMode();
   const playerRank = rankForXp(state.stats.xp);
@@ -228,15 +242,20 @@ function render() {
           </div>
           <div class="music-console ${state.musicPlaying ? 'playing' : ''}" aria-label="Music controls">
             <div>
-              <span>Soundtrack</span>
-              <strong>${MUSIC_TITLE}</strong>
-              <small>${state.musicError || (state.musicPlaying ? 'Now playing' : 'Needle up')}</small>
+              <span>Jukebox</span>
+              <strong data-jukebox-title>${musicTrack.title}</strong>
+              <small>${musicStatus}</small>
             </div>
             <label>
               <span>Vol</span>
               <input type="range" data-action="music-volume" min="0" max="100" value="${musicVolume}" aria-label="Music volume">
               <b data-music-volume-value>${musicVolume}</b>
             </label>
+            <div class="jukebox-buttons" aria-label="Jukebox track controls">
+              <button type="button" data-action="music-prev">Prev</button>
+              <button type="button" data-action="music-next">Next</button>
+              <button type="button" class="${state.musicShuffle ? 'active' : ''}" data-action="music-shuffle">${state.musicShuffle ? 'Shuffle' : 'Order'}</button>
+            </div>
           </div>
         </div>
       </section>
@@ -345,13 +364,25 @@ function bindActions() {
     runSingleClickAction('sound', () => {
       state.muted = !state.muted;
       if (state.muted) {
-        stopAllAudio();
+        stopAllAudio({ pauseMusic: true });
       }
       render();
     });
   });
   root.querySelector('[data-action="music"]')?.addEventListener('click', () => {
     runSingleClickAction('music', () => toggleMusic());
+  });
+  root.querySelector('[data-action="music-prev"]')?.addEventListener('click', () => {
+    runSingleClickAction('music-prev', () => advanceMusicTrack(-1, { autoplay: state.musicPlaying, forceOrder: true }));
+  });
+  root.querySelector('[data-action="music-next"]')?.addEventListener('click', () => {
+    runSingleClickAction('music-next', () => advanceMusicTrack(1, { autoplay: state.musicPlaying, forceOrder: true }));
+  });
+  root.querySelector('[data-action="music-shuffle"]')?.addEventListener('click', () => {
+    runSingleClickAction('music-shuffle', () => {
+      state.musicShuffle = !state.musicShuffle;
+      render();
+    });
   });
   root.querySelector('[data-action="tone-mode"]')?.addEventListener('click', () => {
     runSingleClickAction('tone-mode', () => {
@@ -392,6 +423,30 @@ function bindPageAudioGuards() {
   window.addEventListener('focus', () => {
     state.actionTimes = {};
     render();
+  });
+}
+
+function bindMusicEvents() {
+  const music = musicElement();
+  if (!music || music.dataset.jukeboxBound === 'true') {
+    return;
+  }
+
+  music.dataset.jukeboxBound = 'true';
+  music.addEventListener('ended', () => {
+    if (state.musicPlaying && !state.muted && isActiveGameTab()) {
+      advanceMusicTrack(1, { autoplay: true });
+    }
+  });
+  music.addEventListener('error', () => {
+    if (!state.musicPlaying) {
+      state.musicError = 'Track unavailable.';
+      render();
+      return;
+    }
+
+    state.musicError = 'Track skipped.';
+    advanceMusicTrack(1, { autoplay: true });
   });
 }
 
@@ -753,12 +808,32 @@ function installPromptHint() {
   render();
 }
 
+function currentMusicTrack() {
+  return JUKEBOX_TRACKS[state.musicTrackIndex] ?? JUKEBOX_TRACKS[0];
+}
+
+function syncMusicTrack() {
+  const music = musicElement();
+  if (!music) {
+    return null;
+  }
+
+  const track = currentMusicTrack();
+  if (music.getAttribute('src') !== track.src) {
+    music.pause();
+    music.setAttribute('src', track.src);
+    music.load();
+  }
+  music.volume = state.musicVolume;
+  return music;
+}
+
 function toggleMusic() {
   if (!isActiveGameTab()) {
     return;
   }
 
-  const music = musicElement();
+  const music = syncMusicTrack();
   if (!music) {
     state.musicError = 'Track missing.';
     render();
@@ -773,7 +848,17 @@ function toggleMusic() {
     return;
   }
 
-  music.volume = state.musicVolume;
+  playCurrentMusicTrack();
+}
+
+function playCurrentMusicTrack() {
+  const music = syncMusicTrack();
+  if (!music) {
+    state.musicError = 'Track missing.';
+    render();
+    return;
+  }
+
   state.musicPlaying = true;
   state.musicError = 'Loading track...';
   render();
@@ -792,10 +877,51 @@ function toggleMusic() {
     });
 }
 
+function advanceMusicTrack(direction, { autoplay = false, forceOrder = false } = {}) {
+  const nextIndex = forceOrder || !state.musicShuffle
+    ? state.musicTrackIndex + direction
+    : randomNextTrackIndex();
+  state.musicTrackIndex = wrapTrackIndex(nextIndex);
+  state.musicError = '';
+
+  const music = musicElement();
+  if (music) {
+    music.pause();
+    music.currentTime = 0;
+    music.setAttribute('src', currentMusicTrack().src);
+    music.load();
+    music.volume = state.musicVolume;
+  }
+
+  if (autoplay && !state.muted) {
+    playCurrentMusicTrack();
+    return;
+  }
+
+  state.musicPlaying = false;
+  render();
+}
+
+function randomNextTrackIndex() {
+  if (JUKEBOX_TRACKS.length <= 1) {
+    return 0;
+  }
+
+  let nextIndex = state.musicTrackIndex;
+  while (nextIndex === state.musicTrackIndex) {
+    nextIndex = Math.floor(Math.random() * JUKEBOX_TRACKS.length);
+  }
+  return nextIndex;
+}
+
+function wrapTrackIndex(index) {
+  return (index + JUKEBOX_TRACKS.length) % JUKEBOX_TRACKS.length;
+}
+
 function setMusicVolume(value) {
   const volume = Math.max(0, Math.min(1, Number(value) / 100));
   state.musicVolume = volume;
-  const music = musicElement();
+  const music = syncMusicTrack();
   if (music) {
     music.volume = volume;
   }

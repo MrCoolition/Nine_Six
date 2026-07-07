@@ -318,6 +318,28 @@ button:disabled {
   accent-color: var(--gold);
 }
 
+.jukebox-buttons {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.jukebox-buttons button {
+  min-height: 30px;
+  padding: 0 10px;
+  border-color: rgba(255, 248, 232, 0.16);
+  font-size: 0.68rem;
+}
+
+.jukebox-buttons button.active {
+  border-color: rgba(66, 201, 137, 0.52);
+  color: var(--green);
+  background:
+    linear-gradient(180deg, rgba(21, 69, 46, 0.9), rgba(9, 31, 22, 0.92)),
+    var(--black);
+}
+
 .play-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(310px, 380px);

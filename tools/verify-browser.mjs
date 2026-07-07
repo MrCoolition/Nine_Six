@@ -163,6 +163,7 @@ const faceLabels = await evalValue(
 const hasAutoRoll = await evalValue('Boolean(document.querySelector(\'[data-action="auto"]\')) || document.body.innerText.includes("Run table")');
 const hasCardRibbon = await evalValue('Boolean(document.querySelector(".card-ribbon"))');
 const audioSrc = await evalValue('document.querySelector("#music-track")?.getAttribute("src") || ""');
+const initialJukeboxTitle = await evalValue('document.querySelector("[data-jukebox-title]")?.textContent.trim() || ""');
 const manifestHref = await evalValue('document.querySelector(\'link[rel="manifest"]\')?.getAttribute("href") || ""');
 const overlayState = await evalValue(
   'document.querySelector("[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay") ? "ERROR_OVERLAY" : "OK"'
@@ -229,6 +230,22 @@ await pause(760);
 await clickAt(modeCenter);
 await pause(220);
 const modeAfterAdult = await evalValue('document.querySelector(\'[data-action="tone-mode"]\')?.textContent.trim()');
+let jukeboxAfterNext = { title: initialJukeboxTitle, src: audioSrc };
+let jukeboxNextWorks = true;
+if (!viewportMobile) {
+  const jukeboxNextCenter = await evalValue(`(() => {
+    const button = document.querySelector('[data-action="music-next"]');
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(jukeboxNextCenter);
+  await pause(220);
+  jukeboxAfterNext = await evalValue(`(() => ({
+    title: document.querySelector('[data-jukebox-title]')?.textContent.trim() || '',
+    src: document.querySelector('#music-track')?.getAttribute('src') || ''
+  }))()`);
+  jukeboxNextWorks = jukeboxAfterNext.title === 'Groove 2' && jukeboxAfterNext.src.includes('jukebox-groove-2.wav');
+}
 const buttonCenter = await evalValue(`(() => {
   const button = document.querySelector('[data-action="roll"]');
   const rect = button.getBoundingClientRect();
@@ -262,7 +279,9 @@ const result = {
   hasNoAutoRoll: !hasAutoRoll,
   hasNoCardRibbon: !hasCardRibbon,
   hasNoHuntCopy: !/\bhunt\b/i.test(bodyText),
-  hasMusic: audioSrc.includes('snake-eyes-high-stakes.wav') && (viewportMobile || bodyText.includes('Snake Eyes High Stakes')),
+  hasMusic: audioSrc.includes('jukebox-groove-1.wav') && (viewportMobile || (bodyTextLower.includes('jukebox') && initialJukeboxTitle === 'Groove 1')),
+  jukeboxNextWorks,
+  jukeboxAfterNext,
   hasViralFeatures: bodyTextLower.includes('daily table')
     && bodyTextLower.includes('odds / fairness')
     && bodyTextLower.includes('progression')
@@ -308,6 +327,6 @@ const result = {
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.hasViralFeatures || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
+if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.jukeboxNextWorks || !result.hasViralFeatures || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
   process.exitCode = 1;
 }
