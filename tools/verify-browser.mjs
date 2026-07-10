@@ -157,6 +157,7 @@ await pause(1200);
 const title = await evalValue('document.title');
 const bodyText = await evalValue('document.body.innerText');
 const bodyTextLower = bodyText.toLowerCase();
+const bodyContentLower = await evalValue('document.body.textContent.toLowerCase()');
 const faceLabels = await evalValue(
   'Array.from(document.querySelectorAll(".die-card header strong")).map((node) => node.textContent.trim())'
 );
@@ -170,6 +171,11 @@ const overlayState = await evalValue(
 );
 const beforePath = await saveScreenshot(`${screenshotPrefix}-before-roll.png`);
 const layoutMetrics = await evalValue(`(() => {
+  const visibleElement = (selector) => Array.from(document.querySelectorAll(selector)).find((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  });
   const cards = Array.from(document.querySelectorAll('.die-card')).map((element) => {
     const rect = element.getBoundingClientRect();
     return {
@@ -180,9 +186,9 @@ const layoutMetrics = await evalValue(`(() => {
       bottom: Math.round(rect.bottom)
     };
   });
-  const rollButton = document.querySelector('[data-action="roll"]');
+  const rollButton = visibleElement('[data-action="roll"]');
   const rollRect = rollButton.getBoundingClientRect();
-  const controlRow = document.querySelector('.control-row');
+  const controlRow = document.querySelector('${viewportMobile ? '.mobile-command-bar' : '.control-row'}');
   const controls = Array.from(controlRow.querySelectorAll('button')).map((button) => button.dataset.action);
   const controlRect = controlRow.getBoundingClientRect();
   const tableRect = document.querySelector('.table-zone').getBoundingClientRect();
@@ -205,19 +211,47 @@ const layoutMetrics = await evalValue(`(() => {
     noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth + 2
   };
 })()`);
+if (viewportMobile) {
+  const tableTrayCenter = await evalValue(`(() => {
+    const button = document.querySelector('[data-action="table-tray"]');
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(tableTrayCenter);
+  await pause(220);
+}
+
 const soundCenter = await evalValue(`(() => {
-  const button = document.querySelector('[data-action="sound"]');
+  const button = Array.from(document.querySelectorAll('[data-action="sound"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
   const rect = button.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 })()`);
 await clickAt(soundCenter);
 await clickAt(soundCenter);
-const soundAfterDoubleClick = await evalValue('document.querySelector(\'[data-action="sound"]\')?.textContent.trim()');
+const soundAfterDoubleClick = await evalValue(`(() => {
+  const button = Array.from(document.querySelectorAll('[data-action="sound"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+  return button?.textContent.trim() || '';
+})()`);
 await pause(760);
 await clickAt(soundCenter);
-const soundAfterRestore = await evalValue('document.querySelector(\'[data-action="sound"]\')?.textContent.trim()');
+const soundAfterRestore = await evalValue(`(() => {
+  const button = Array.from(document.querySelectorAll('[data-action="sound"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+  return button?.textContent.trim() || '';
+})()`);
 const modeCenter = await evalValue(`(() => {
-  const button = document.querySelector('[data-action="tone-mode"]');
+  const button = Array.from(document.querySelectorAll('[data-action="tone-mode"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
   const rect = button.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 })()`);
@@ -225,29 +259,100 @@ await clickAt(modeCenter);
 await pause(220);
 const pgText = await evalValue('document.body.innerText');
 const pgTextLower = pgText.toLowerCase();
-const modeAfterPg = await evalValue('document.querySelector(\'[data-action="tone-mode"]\')?.textContent.trim()');
+const modeAfterPg = await evalValue(`(() => {
+  const button = Array.from(document.querySelectorAll('[data-action="tone-mode"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+  return button?.textContent.trim() || '';
+})()`);
 await pause(760);
 await clickAt(modeCenter);
 await pause(220);
-const modeAfterAdult = await evalValue('document.querySelector(\'[data-action="tone-mode"]\')?.textContent.trim()');
+const modeAfterAdult = await evalValue(`(() => {
+  const button = Array.from(document.querySelectorAll('[data-action="tone-mode"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+  return button?.textContent.trim() || '';
+})()`);
 let jukeboxAfterNext = { title: initialJukeboxTitle, src: audioSrc };
 let jukeboxNextWorks = true;
-if (!viewportMobile) {
+let mobileJukeboxReady = true;
+if (viewportMobile) {
+  const closeTableCenter = await evalValue(`(() => {
+    const button = Array.from(document.querySelectorAll('[data-action="close-tray"]')).find((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(closeTableCenter);
+  await pause(220);
+
+  const openJukeboxCenter = await evalValue(`(() => {
+    const button = document.querySelector('[data-action="music-tray"]');
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(openJukeboxCenter);
+  await pause(220);
+}
+
+{
   const jukeboxNextCenter = await evalValue(`(() => {
-    const button = document.querySelector('[data-action="music-next"]');
+    const button = Array.from(document.querySelectorAll('[data-action="music-next"]')).find((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
     const rect = button.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   })()`);
   await clickAt(jukeboxNextCenter);
   await pause(220);
   jukeboxAfterNext = await evalValue(`(() => ({
-    title: document.querySelector('[data-jukebox-title]')?.textContent.trim() || '',
+    title: Array.from(document.querySelectorAll('[data-jukebox-title]')).find((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    })?.textContent.trim() || '',
     src: document.querySelector('#music-track')?.getAttribute('src') || ''
   }))()`);
   jukeboxNextWorks = jukeboxAfterNext.title === 'Groove 2' && jukeboxAfterNext.src.includes('jukebox-groove-2.wav');
 }
+
+if (viewportMobile) {
+  const playMusicCenter = await evalValue(`(() => {
+    const button = Array.from(document.querySelectorAll('.music-play')).find((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(playMusicCenter);
+  await pause(360);
+  mobileJukeboxReady = await evalValue(`(() => {
+    const audio = document.querySelector('#music-track');
+    return !audio.paused || (audio.controls && audio.classList.contains('needs-native'));
+  })()`);
+
+  const closeJukeboxCenter = await evalValue(`(() => {
+    const button = Array.from(document.querySelectorAll('[data-action="close-tray"]')).find((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(closeJukeboxCenter);
+  await pause(220);
+}
 const buttonCenter = await evalValue(`(() => {
-  const button = document.querySelector('[data-action="roll"]');
+  const button = Array.from(document.querySelectorAll('[data-action="roll"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
   const rect = button.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, text: button.textContent.trim() };
 })()`);
@@ -263,6 +368,7 @@ const cardFooter = await evalValue('Array.from(document.querySelectorAll(".die-c
 const hasMessageBurst = await evalValue('Boolean(document.querySelector(".message-burst"))');
 const afterText = await evalValue('document.body.innerText');
 const afterTextLower = afterText.toLowerCase();
+const afterContentLower = await evalValue('document.body.textContent.toLowerCase()');
 const afterPath = await saveScreenshot(`${screenshotPrefix}-after-roll.png`);
 const rollCard = rollList.match(/\[(?:[^,]+),\s*(?:[^,]+),\s*([JQK])\]/)?.[1] ?? '';
 
@@ -270,7 +376,7 @@ socket.close();
 
 const result = {
   title,
-  loaded: bodyText.includes('NINE SIX') && bodyText.includes('Roll'),
+  loaded: bodyContentLower.includes('nine six') && bodyContentLower.includes('roll'),
   hasCorrectTable: (viewportMobile || bodyText.includes('The hand is 9, 6, Queen'))
     && faceLabels.join('|') === 'Nine die|Six die|Playing card',
   hasFaceCardSlot: bodyText.includes('Face cards only') || afterText.includes('Face cards only') || cardFooter.includes('Face cards only'),
@@ -281,19 +387,20 @@ const result = {
   hasNoHuntCopy: !/\bhunt\b/i.test(bodyText),
   hasMusic: audioSrc.includes('jukebox-groove-1.wav') && (viewportMobile || (bodyTextLower.includes('jukebox') && initialJukeboxTitle === 'Groove 1')),
   jukeboxNextWorks,
+  mobileJukeboxReady,
   jukeboxAfterNext,
-  hasViralFeatures: bodyTextLower.includes('daily table')
-    && bodyTextLower.includes('odds / fairness')
-    && bodyTextLower.includes('progression')
-    && bodyTextLower.includes('fictional bankroll')
-    && bodyTextLower.includes('fictional chips'),
+  hasViralFeatures: bodyContentLower.includes('daily table')
+    && bodyContentLower.includes('odds / fairness')
+    && bodyContentLower.includes('progression')
+    && bodyContentLower.includes('fictional bankroll')
+    && bodyContentLower.includes('fictional chips'),
   hasPwa: manifestHref.includes('manifest.webmanifest'),
   overlayState,
   layoutMetrics,
   initialButton: buttonCenter.text,
-  doubleClickGuarded: soundAfterDoubleClick === 'Sound off' && soundAfterRestore === 'Sound on',
-  modeToggleWorks: modeAfterPg === 'PG'
-    && modeAfterAdult === 'Adult'
+  doubleClickGuarded: /off/i.test(soundAfterDoubleClick) && /on/i.test(soundAfterRestore),
+  modeToggleWorks: /PG/i.test(modeAfterPg)
+    && /Adult/i.test(modeAfterAdult)
     && (viewportMobile || (pgTextLower.includes('pg tone') && pgTextLower.includes('clean calls')))
     && (!viewportMobile || pgText.includes('NINE SIX / PG TABLE'))
     && !/bitch|fuck|bullshit|talk shit|21\+ table/i.test(pgText),
@@ -305,7 +412,9 @@ const result = {
     && layoutMetrics.controlPosition === 'fixed'
     && layoutMetrics.rollButtonHeight >= 48
     && layoutMetrics.rollBottomGap <= 18
-    && layoutMetrics.controls.includes('daily')
+    && layoutMetrics.controls.includes('roll')
+    && layoutMetrics.controls.includes('music-tray')
+    && layoutMetrics.controls.includes('table-tray')
   ),
   viewport: {
     width: viewportWidth,
@@ -321,12 +430,12 @@ const result = {
     type: event.type,
     args: event.args?.map((arg) => arg.value || arg.description)
   })),
-  hasGameContent: afterTextLower.includes('this turn') && afterTextLower.includes('table log'),
+  hasGameContent: afterContentLower.includes('this turn') && afterContentLower.includes('table log'),
   screenshots: [beforePath, afterPath]
 };
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.jukeboxNextWorks || !result.hasViralFeatures || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
+if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.jukeboxNextWorks || !result.mobileJukeboxReady || !result.hasViralFeatures || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
   process.exitCode = 1;
 }

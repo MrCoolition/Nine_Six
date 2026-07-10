@@ -146,6 +146,9 @@ const state = {
   musicError: '',
   musicTrackIndex: 0,
   musicShuffle: true,
+  mobileTray: null,
+  intelView: 'daily',
+  endScreenDismissed: false,
   shareNotice: '',
   dailySeed: dailySeedForDate(),
   dailyRollIndex: 0,
@@ -188,12 +191,15 @@ function render() {
   const musicVolume = Math.round(state.musicVolume * 100);
   const musicTrack = currentMusicTrack();
   const musicStatus = state.musicError || `${state.musicPlaying ? 'Now playing' : 'Needle up'} - ${state.musicTrackIndex + 1}/${JUKEBOX_TRACKS.length}`;
+  const music = musicElement();
+  const musicDuration = Number.isFinite(music?.duration) ? music.duration : 0;
+  const musicTime = Number.isFinite(music?.currentTime) ? music.currentTime : 0;
   const targetGap = Math.max(0, TARGET_SCORE - state.totalScore);
   const adultMode = isAdultMode();
   const playerRank = rankForXp(state.stats.xp);
 
   root.innerHTML = `
-    <main class="game-shell ${moodClass} ${rollingClass} rank-${playerRank.index} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''}">
+    <main class="game-shell ${moodClass} ${rollingClass} rank-${playerRank.index} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''} tray-${state.mobileTray ?? 'closed'} intel-${state.intelView}">
       <section class="score-band" aria-label="NINE SIX scoreboard">
         <div class="brand-lockup">
           <div class="brand-mark" aria-hidden="true">
@@ -240,23 +246,7 @@ function render() {
             <span>${TABLE_STAKE} chip ante</span>
             <span>${adultMode ? 'uncensored calls' : 'clean calls'}</span>
           </div>
-          <div class="music-console ${state.musicPlaying ? 'playing' : ''}" aria-label="Music controls">
-            <div>
-              <span>Jukebox</span>
-              <strong data-jukebox-title>${musicTrack.title}</strong>
-              <small>${musicStatus}</small>
-            </div>
-            <label>
-              <span>Vol</span>
-              <input type="range" data-action="music-volume" min="0" max="100" value="${musicVolume}" aria-label="Music volume">
-              <b data-music-volume-value>${musicVolume}</b>
-            </label>
-            <div class="jukebox-buttons" aria-label="Jukebox track controls">
-              <button type="button" data-action="music-prev">Prev</button>
-              <button type="button" data-action="music-next">Next</button>
-              <button type="button" class="${state.musicShuffle ? 'active' : ''}" data-action="music-shuffle">${state.musicShuffle ? 'Shuffle' : 'Order'}</button>
-            </div>
-          </div>
+          ${jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, musicDuration, variant: 'desktop' })}
         </div>
       </section>
 
@@ -338,6 +328,13 @@ function render() {
       </section>
 
       ${shareCard(current, gameWon, gameLost)}
+      <nav class="intel-tabs" aria-label="Table information">
+        ${intelTab('daily', 'Daily')}
+        ${intelTab('odds', 'Odds')}
+        ${intelTab('progress', 'Locker')}
+        ${intelTab('log', 'Log')}
+      </nav>
+
       ${viralConsole(current)}
 
       <section class="history-section" aria-label="Turn history">
@@ -347,61 +344,130 @@ function render() {
         </header>
         ${historyTable()}
       </section>
+
+      ${endGameCurtain(current, gameWon, gameLost)}
+
+      <div class="tray-scrim" data-action="close-tray" aria-hidden="true"></div>
+      ${jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, musicDuration, variant: 'mobile' })}
+      ${mobileTableTray(adultMode, playerRank, heatLevel)}
+
+      <nav class="mobile-command-bar" aria-label="Game controls">
+        <button type="button" class="command-music ${state.musicPlaying ? 'active' : ''}" data-action="music-tray" aria-expanded="${state.mobileTray === 'music'}">
+          <span aria-hidden="true">&#9835;</span>
+          <b>Jukebox</b>
+          <small>${state.musicPlaying ? 'Playing' : 'Music'}</small>
+        </button>
+        <button type="button" class="command-roll" data-action="roll" ${state.rolling || gameOver ? 'disabled' : ''}>
+          <span>${state.rolling ? '...' : 'ROLL'}</span>
+          <small>${state.rolling ? 'Showdown' : '9 / 6 / Q'}</small>
+        </button>
+        <button type="button" class="command-table" data-action="table-tray" aria-expanded="${state.mobileTray === 'table'}">
+          <span aria-hidden="true">96</span>
+          <b>Table</b>
+          <small>${adultMode ? 'Adult' : 'PG'}</small>
+        </button>
+      </nav>
     </main>
   `;
 
   bindActions();
 }
 
+function jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, musicDuration, variant }) {
+  const mobile = variant === 'mobile';
+
+  return `
+    <section class="music-console ${variant}-music-console ${state.musicPlaying ? 'playing' : ''}" aria-label="Music controls" ${mobile ? `aria-hidden="${state.mobileTray !== 'music'}"` : ''}>
+      <header class="jukebox-head">
+        <div class="record-mark ${state.musicPlaying ? 'spinning' : ''}" aria-hidden="true"><i></i></div>
+        <div>
+          <span>Jukebox / ${state.musicTrackIndex + 1} of ${JUKEBOX_TRACKS.length}</span>
+          <strong data-jukebox-title>${musicTrack.title}</strong>
+          <small data-jukebox-status>${musicStatus}</small>
+        </div>
+        ${mobile ? '<button type="button" class="tray-close" data-action="close-tray" aria-label="Close jukebox" title="Close jukebox">&times;</button>' : ''}
+      </header>
+      <div class="track-progress">
+        <input type="range" data-action="music-seek" min="0" max="${Math.max(1, Math.round(musicDuration))}" value="${Math.min(Math.round(musicTime), Math.max(1, Math.round(musicDuration)))}" aria-label="Track position">
+        <small><span data-music-time>${formatClock(musicTime)}</span><span data-music-duration>${formatClock(musicDuration)}</span></small>
+      </div>
+      <div class="jukebox-buttons" aria-label="Jukebox track controls">
+        <button type="button" data-action="music-prev" aria-label="Previous track" title="Previous track"><span aria-hidden="true">&#9198;</span><b>Prev</b></button>
+        <button type="button" class="music-play ${state.musicPlaying ? 'active' : ''}" data-action="music" aria-label="${state.musicPlaying ? 'Pause music' : 'Play music'}" title="${state.musicPlaying ? 'Pause' : 'Play'}"><span aria-hidden="true">${state.musicPlaying ? '&#10074;&#10074;' : '&#9654;'}</span><b>${state.musicPlaying ? 'Pause' : 'Play'}</b></button>
+        <button type="button" data-action="music-next" aria-label="Next track" title="Next track"><span aria-hidden="true">&#9197;</span><b>Next</b></button>
+        <button type="button" class="shuffle-button ${state.musicShuffle ? 'active' : ''}" data-action="music-shuffle" aria-pressed="${state.musicShuffle}" aria-label="Shuffle" title="Toggle shuffle"><span aria-hidden="true">&#8644;</span><b>${state.musicShuffle ? 'Shuffle' : 'Order'}</b></button>
+      </div>
+      <label class="volume-control">
+        <span>Volume</span>
+        <input type="range" data-action="music-volume" min="0" max="100" value="${musicVolume}" aria-label="Music volume">
+        <b data-music-volume-value>${musicVolume}</b>
+      </label>
+    </section>
+  `;
+}
+
 function bindActions() {
-  root.querySelector('[data-action="roll"]')?.addEventListener('click', () => {
-    runSingleClickAction('roll', () => rollTurn());
+  bindClickAction('roll', () => rollTurn());
+  bindClickAction('reset', () => resetGame());
+  bindClickAction('sound', () => {
+    state.muted = !state.muted;
+    if (state.muted) {
+      stopAllAudio({ pauseMusic: true });
+    }
+    render();
   });
-  root.querySelector('[data-action="reset"]')?.addEventListener('click', () => {
-    runSingleClickAction('reset', () => resetGame());
+  bindClickAction('music', () => toggleMusic());
+  bindClickAction('music-prev', () => advanceMusicTrack(-1, { autoplay: state.musicPlaying, forceOrder: true }));
+  bindClickAction('music-next', () => advanceMusicTrack(1, { autoplay: state.musicPlaying, forceOrder: true }));
+  bindClickAction('music-shuffle', () => {
+    state.musicShuffle = !state.musicShuffle;
+    render();
   });
-  root.querySelector('[data-action="sound"]')?.addEventListener('click', () => {
-    runSingleClickAction('sound', () => {
-      state.muted = !state.muted;
-      if (state.muted) {
-        stopAllAudio({ pauseMusic: true });
-      }
-      render();
+  bindClickAction('tone-mode', () => {
+    state.toneMode = isAdultMode() ? 'pg' : 'adult';
+    stopActiveCallout();
+    render();
+  });
+  bindClickAction('daily', () => {
+    state.mobileTray = null;
+    toggleDailyMode();
+  });
+  bindClickAction('share', () => shareCurrentMoment());
+  bindClickAction('install', () => installPromptHint());
+  bindClickAction('music-tray', () => {
+    state.mobileTray = state.mobileTray === 'music' ? null : 'music';
+    render();
+  });
+  bindClickAction('table-tray', () => {
+    state.mobileTray = state.mobileTray === 'table' ? null : 'table';
+    render();
+  });
+  bindClickAction('close-tray', () => {
+    state.mobileTray = null;
+    render();
+  });
+  bindClickAction('dismiss-end', () => {
+    state.endScreenDismissed = true;
+    render();
+  });
+  bindClickAction('intel', (event) => {
+    state.intelView = event.currentTarget.dataset.intel || 'daily';
+    render();
+  });
+
+  root.querySelectorAll('[data-action="music-volume"]').forEach((input) => {
+    input.addEventListener('input', (event) => setMusicVolume(event.target.value));
+  });
+  root.querySelectorAll('[data-action="music-seek"]').forEach((input) => {
+    input.addEventListener('input', (event) => seekMusic(event.target.value));
+  });
+}
+
+function bindClickAction(action, callback) {
+  root.querySelectorAll(`[data-action="${action}"]`).forEach((button) => {
+    button.addEventListener('click', (event) => {
+      runSingleClickAction(action, () => callback(event));
     });
-  });
-  root.querySelector('[data-action="music"]')?.addEventListener('click', () => {
-    runSingleClickAction('music', () => toggleMusic());
-  });
-  root.querySelector('[data-action="music-prev"]')?.addEventListener('click', () => {
-    runSingleClickAction('music-prev', () => advanceMusicTrack(-1, { autoplay: state.musicPlaying, forceOrder: true }));
-  });
-  root.querySelector('[data-action="music-next"]')?.addEventListener('click', () => {
-    runSingleClickAction('music-next', () => advanceMusicTrack(1, { autoplay: state.musicPlaying, forceOrder: true }));
-  });
-  root.querySelector('[data-action="music-shuffle"]')?.addEventListener('click', () => {
-    runSingleClickAction('music-shuffle', () => {
-      state.musicShuffle = !state.musicShuffle;
-      render();
-    });
-  });
-  root.querySelector('[data-action="tone-mode"]')?.addEventListener('click', () => {
-    runSingleClickAction('tone-mode', () => {
-      state.toneMode = isAdultMode() ? 'pg' : 'adult';
-      stopActiveCallout();
-      render();
-    });
-  });
-  root.querySelector('[data-action="daily"]')?.addEventListener('click', () => {
-    runSingleClickAction('daily', () => toggleDailyMode());
-  });
-  root.querySelector('[data-action="share"]')?.addEventListener('click', () => {
-    runSingleClickAction('share', () => shareCurrentMoment());
-  });
-  root.querySelector('[data-action="install"]')?.addEventListener('click', () => {
-    runSingleClickAction('install', () => installPromptHint());
-  });
-  root.querySelector('[data-action="music-volume"]')?.addEventListener('input', (event) => {
-    setMusicVolume(event.target.value);
   });
 }
 
@@ -413,10 +479,6 @@ function bindPageAudioGuards() {
   });
 
   window.addEventListener('pagehide', () => {
-    stopAllAudio({ cancelRoll: true, pauseMusic: true });
-  });
-
-  window.addEventListener('blur', () => {
     stopAllAudio({ cancelRoll: true, pauseMusic: true });
   });
 
@@ -433,6 +495,28 @@ function bindMusicEvents() {
   }
 
   music.dataset.jukeboxBound = 'true';
+  music.addEventListener('play', () => {
+    state.musicPlaying = true;
+    state.musicError = '';
+    music.controls = false;
+    music.classList.remove('needs-native');
+    syncMusicUi();
+  });
+  music.addEventListener('playing', () => {
+    state.musicPlaying = true;
+    state.musicError = '';
+    syncMusicUi();
+  });
+  music.addEventListener('pause', () => {
+    state.musicPlaying = false;
+    syncMusicUi();
+  });
+  music.addEventListener('waiting', () => {
+    state.musicError = 'Buffering...';
+    syncMusicUi();
+  });
+  music.addEventListener('loadedmetadata', syncMusicUi);
+  music.addEventListener('timeupdate', syncMusicTimeline);
   music.addEventListener('ended', () => {
     if (state.musicPlaying && !state.muted && isActiveGameTab()) {
       advanceMusicTrack(1, { autoplay: true });
@@ -642,6 +726,7 @@ async function rollTurn() {
 
   stopAllAudio();
   state.shareNotice = '';
+  state.mobileTray = null;
 
   const token = ++state.rollToken;
   const result = createTurn();
@@ -711,6 +796,9 @@ async function rollTurn() {
   state.boofballs = settled.boofballsAfter;
   state.round = round;
   state.history = [settled, ...state.history].slice(0, HISTORY_LIMIT);
+  if (settled.exactWin || settled.walkOut) {
+    state.endScreenDismissed = false;
+  }
   recordSettledTurn(settled);
   state.rolling = false;
 
@@ -767,6 +855,8 @@ function resetGame() {
   state.dailyRollIndex = 0;
   state.shareNotice = '';
   state.lastCalloutByType = {};
+  state.mobileTray = null;
+  state.endScreenDismissed = false;
   render();
 }
 
@@ -822,13 +912,15 @@ function syncMusicTrack() {
   if (music.getAttribute('src') !== track.src) {
     music.pause();
     music.setAttribute('src', track.src);
+    music.preload = 'auto';
     music.load();
   }
+  music.muted = false;
   music.volume = state.musicVolume;
   return music;
 }
 
-function toggleMusic() {
+async function toggleMusic() {
   if (!isActiveGameTab()) {
     return;
   }
@@ -848,10 +940,11 @@ function toggleMusic() {
     return;
   }
 
-  playCurrentMusicTrack();
+  state.muted = false;
+  await playCurrentMusicTrack();
 }
 
-function playCurrentMusicTrack() {
+async function playCurrentMusicTrack() {
   const music = syncMusicTrack();
   if (!music) {
     state.musicError = 'Track missing.';
@@ -859,42 +952,48 @@ function playCurrentMusicTrack() {
     return;
   }
 
-  state.musicPlaying = true;
-  state.musicError = 'Loading track...';
-  render();
+  state.musicError = 'Starting track...';
+  syncMusicUi();
 
-  music.play()
-    .then(() => {
-      state.musicPlaying = true;
-      state.musicError = '';
-      render();
-    })
-    .catch(() => {
-      music.pause();
-      state.musicPlaying = false;
-      state.musicError = 'Tap again to unlock browser audio.';
-      render();
-    });
+  try {
+    await music.play();
+    state.musicPlaying = !music.paused;
+    state.musicError = '';
+    music.controls = false;
+    music.classList.remove('needs-native');
+  } catch (error) {
+    music.pause();
+    music.controls = true;
+    music.classList.add('needs-native');
+    state.musicPlaying = false;
+    state.musicError = error?.name === 'NotAllowedError'
+      ? 'Phone audio lock. Use the player below.'
+      : 'Track could not start.';
+  }
+
+  render();
 }
 
-function advanceMusicTrack(direction, { autoplay = false, forceOrder = false } = {}) {
+async function advanceMusicTrack(direction, { autoplay = false, forceOrder = false } = {}) {
+  const music = musicElement();
+  const shouldAutoplay = autoplay || Boolean(music && !music.paused);
   const nextIndex = forceOrder || !state.musicShuffle
     ? state.musicTrackIndex + direction
     : randomNextTrackIndex();
   state.musicTrackIndex = wrapTrackIndex(nextIndex);
   state.musicError = '';
 
-  const music = musicElement();
   if (music) {
     music.pause();
     music.currentTime = 0;
     music.setAttribute('src', currentMusicTrack().src);
+    music.preload = 'auto';
     music.load();
     music.volume = state.musicVolume;
   }
 
-  if (autoplay && !state.muted) {
-    playCurrentMusicTrack();
+  if (shouldAutoplay && !state.muted) {
+    await playCurrentMusicTrack();
     return;
   }
 
@@ -929,6 +1028,79 @@ function setMusicVolume(value) {
   if (label) {
     label.textContent = String(Math.round(volume * 100));
   }
+}
+
+function seekMusic(value) {
+  const music = musicElement();
+  if (!music || !Number.isFinite(music.duration)) {
+    return;
+  }
+
+  music.currentTime = Math.max(0, Math.min(music.duration, Number(value)));
+  syncMusicTimeline();
+}
+
+function syncMusicUi() {
+  const track = currentMusicTrack();
+  const status = state.musicError || `${state.musicPlaying ? 'Now playing' : 'Needle up'} - ${state.musicTrackIndex + 1}/${JUKEBOX_TRACKS.length}`;
+
+  root.querySelectorAll('[data-jukebox-title]').forEach((label) => {
+    label.textContent = track.title;
+  });
+  root.querySelectorAll('[data-jukebox-status]').forEach((label) => {
+    label.textContent = status;
+  });
+  root.querySelectorAll('.music-console').forEach((consoleElement) => {
+    consoleElement.classList.toggle('playing', state.musicPlaying);
+  });
+  root.querySelectorAll('.record-mark').forEach((record) => {
+    record.classList.toggle('spinning', state.musicPlaying);
+  });
+  root.querySelectorAll('.music-play').forEach((button) => {
+    button.classList.toggle('active', state.musicPlaying);
+    button.setAttribute('aria-label', state.musicPlaying ? 'Pause music' : 'Play music');
+    button.setAttribute('title', state.musicPlaying ? 'Pause' : 'Play');
+    button.innerHTML = `<span aria-hidden="true">${state.musicPlaying ? '&#10074;&#10074;' : '&#9654;'}</span><b>${state.musicPlaying ? 'Pause' : 'Play'}</b>`;
+  });
+  root.querySelectorAll('.music-action').forEach((button) => {
+    button.classList.toggle('active', state.musicPlaying);
+    button.textContent = state.musicPlaying ? 'Kill track' : 'Drop needle';
+  });
+  root.querySelectorAll('.command-music').forEach((button) => {
+    button.classList.toggle('active', state.musicPlaying);
+    const statusLabel = button.querySelector('small');
+    if (statusLabel) {
+      statusLabel.textContent = state.musicPlaying ? 'Playing' : 'Music';
+    }
+  });
+
+  syncMusicTimeline();
+}
+
+function syncMusicTimeline() {
+  const music = musicElement();
+  if (!music) {
+    return;
+  }
+
+  const duration = Number.isFinite(music.duration) ? music.duration : 0;
+  const currentTime = Number.isFinite(music.currentTime) ? music.currentTime : 0;
+  root.querySelectorAll('[data-action="music-seek"]').forEach((input) => {
+    input.max = String(Math.max(1, Math.round(duration)));
+    input.value = String(Math.min(Math.round(currentTime), Math.max(1, Math.round(duration))));
+  });
+  root.querySelectorAll('[data-music-time]').forEach((label) => {
+    label.textContent = formatClock(currentTime);
+  });
+  root.querySelectorAll('[data-music-duration]').forEach((label) => {
+    label.textContent = formatClock(duration);
+  });
+}
+
+function formatClock(seconds) {
+  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  return `${minutes}:${String(safeSeconds % 60).padStart(2, '0')}`;
 }
 
 function musicElement() {
@@ -1107,6 +1279,72 @@ function winCelebration(current, gameWon) {
   `;
 }
 
+function intelTab(key, label) {
+  return `<button type="button" class="${state.intelView === key ? 'active' : ''}" data-action="intel" data-intel="${key}" aria-pressed="${state.intelView === key}">${label}</button>`;
+}
+
+function mobileTableTray(adultMode, playerRank, heatLevel) {
+  return `
+    <aside class="mobile-table-tray" aria-label="Table controls" aria-hidden="${state.mobileTray !== 'table'}">
+      <header>
+        <div>
+          <span>Table controls</span>
+          <strong>Set the room.</strong>
+        </div>
+        <button type="button" class="tray-close" data-action="close-tray" aria-label="Close table controls" title="Close table controls">&times;</button>
+      </header>
+      <div class="table-control-grid">
+        <button type="button" data-action="sound"><span>Sound</span><strong>${state.muted ? 'Off' : 'On'}</strong></button>
+        <button type="button" data-action="tone-mode"><span>Language</span><strong>${adultMode ? 'Adult' : 'PG'}</strong></button>
+        <button type="button" data-action="daily" class="${state.playMode === 'daily' ? 'active' : ''}"><span>Mode</span><strong>${state.playMode === 'daily' ? 'Daily' : 'Free'}</strong></button>
+        <button type="button" data-action="reset"><span>Session</span><strong>Reset</strong></button>
+      </div>
+      <div class="table-tray-stats">
+        <div><span>Rank</span><strong>${playerRank.current.name}</strong></div>
+        <div><span>Heat</span><strong>${heatLevel}</strong></div>
+        <div><span>Bankroll</span><strong>${formatNumber(state.stats.bankroll)}</strong></div>
+      </div>
+      <p>Fictional chips only. No cash value.</p>
+    </aside>
+  `;
+}
+
+function endGameCurtain(current, gameWon, gameLost) {
+  if ((!gameWon && !gameLost) || state.endScreenDismissed) {
+    return '';
+  }
+
+  const perfect = gameWon && isPerfectNineSix(current);
+  const tone = gameLost ? 'walkout' : perfect ? 'jackpot' : 'exact';
+  const kicker = gameLost ? 'Four BOOFBALLS' : perfect ? 'Perfect 9 / 6 / Q' : 'Exact bank';
+  const title = gameLost ? 'WALK THE FUCK OUT' : perfect ? 'NINE SIX BITCH' : 'BANK 96';
+  const body = gameLost
+    ? `The rack spells BOOF. Session over at bank ${state.totalScore}.`
+    : perfect
+      ? 'Nine die. Six die. Queen. The whole table belongs to you.'
+      : `Exact 96 in ${state.round} turns. No overshoot. No apology.`;
+
+  return `
+    <section class="end-game-curtain ${tone}" role="dialog" aria-modal="true" aria-label="${displayCopy(title)}">
+      <div class="curtain-rays" aria-hidden="true"></div>
+      <div class="curtain-confetti" aria-hidden="true">
+        ${Array.from({ length: 18 }, (_, index) => `<i style="--i:${index}"></i>`).join('')}
+      </div>
+      <div class="curtain-content">
+        <span>${displayCopy(kicker)}</span>
+        <div class="curtain-mark" aria-hidden="true">${gameLost ? '<b>B</b><b>O</b><b>O</b><b>F</b>' : '<b>9</b><b>6</b>'}</div>
+        <strong>${displayCopy(title)}</strong>
+        <p>${displayCopy(body)}</p>
+        <div class="curtain-actions">
+          <button type="button" class="primary-action" data-action="reset">Run it back</button>
+          <button type="button" data-action="share">Share the damage</button>
+          <button type="button" data-action="dismiss-end">See the table</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function viralConsole(current) {
   const rank = rankForXp(state.stats.xp);
   const nextRank = RANKS[rank.index + 1];
@@ -1118,7 +1356,7 @@ function viralConsole(current) {
 
   return `
     <section class="viral-console" aria-label="NINE SIX viral console">
-      <article class="feature-card daily-card">
+      <article class="feature-card daily-card intel-card intel-daily ${state.intelView === 'daily' ? 'active' : ''}">
         <header>
           <span>Daily Table</span>
           <strong>${state.playMode === 'daily' ? 'Live seed' : 'Tap Daily'}</strong>
@@ -1132,7 +1370,7 @@ function viralConsole(current) {
         </dl>
       </article>
 
-      <article class="feature-card odds-card">
+      <article class="feature-card odds-card intel-card intel-odds ${state.intelView === 'odds' ? 'active' : ''}">
         <header>
           <span>Odds / Fairness</span>
           <strong>${ODDS.perfectPercent}</strong>
@@ -1146,7 +1384,7 @@ function viralConsole(current) {
         <p>${ODDS.anteWarning} Expected payout at this table is ${ODDS.expectedPayout}, so this is not real-money economics.</p>
       </article>
 
-      <article class="feature-card progress-card">
+      <article class="feature-card progress-card intel-card intel-progress ${state.intelView === 'progress' ? 'active' : ''}">
         <header>
           <span>Progression</span>
           <strong>${rank.current.name}</strong>

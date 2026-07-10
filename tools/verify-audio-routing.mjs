@@ -67,7 +67,10 @@ async function evalValue(expression) {
 
 async function clickRoll() {
   const buttonCenter = await evalValue(`(() => {
-    const button = document.querySelector('[data-action="roll"]');
+    const button = Array.from(document.querySelectorAll('[data-action="roll"]')).find((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
     const rect = button.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   })()`);
@@ -166,6 +169,12 @@ async function runExactBankNoVoiceCase() {
 
 await cdp('Page.enable');
 await cdp('Runtime.enable');
+await cdp('Emulation.setDeviceMetricsOverride', {
+  width: 1440,
+  height: 980,
+  deviceScaleFactor: 1,
+  mobile: false
+});
 await cdp('Page.addScriptToEvaluateOnNewDocument', {
   source: `
     window.__nineSixAudioEvents = [];
