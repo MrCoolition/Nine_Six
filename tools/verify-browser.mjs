@@ -377,7 +377,7 @@ socket.close();
 const result = {
   title,
   loaded: bodyContentLower.includes('nine six') && bodyContentLower.includes('roll'),
-  hasCorrectTable: (viewportMobile || bodyText.includes('The hand is 9, 6, Queen'))
+  hasCorrectTable: (viewportMobile || bodyText.includes('Land 9 / 6 / Q'))
     && faceLabels.join('|') === 'Nine die|Six die|Playing card',
   hasFaceCardSlot: bodyText.includes('Face cards only') || afterText.includes('Face cards only') || cardFooter.includes('Face cards only'),
   hasFaceCardRoll: Boolean(rollCard),
@@ -389,7 +389,7 @@ const result = {
   jukeboxNextWorks,
   mobileJukeboxReady,
   jukeboxAfterNext,
-  hasViralFeatures: bodyContentLower.includes('daily table')
+  hasViralFeatures: bodyContentLower.includes('daily riot')
     && bodyContentLower.includes('odds / fairness')
     && bodyContentLower.includes('progression')
     && bodyContentLower.includes('fictional bankroll')
@@ -401,8 +401,8 @@ const result = {
   doubleClickGuarded: /off/i.test(soundAfterDoubleClick) && /on/i.test(soundAfterRestore),
   modeToggleWorks: /PG/i.test(modeAfterPg)
     && /Adult/i.test(modeAfterAdult)
-    && (viewportMobile || (pgTextLower.includes('pg tone') && pgTextLower.includes('clean calls')))
-    && (!viewportMobile || pgText.includes('NINE SIX / PG TABLE'))
+    && (viewportMobile || (pgTextLower.includes('clean cut') && pgTextLower.includes('clean calls')))
+    && (!viewportMobile || pgText.includes('NINE SIX / CLEAN CUT'))
     && !/bitch|fuck|bullshit|talk shit|21\+ table/i.test(pgText),
   mobileLayoutOk: !viewportMobile || (
     layoutMetrics.noHorizontalOverflow
@@ -430,7 +430,7 @@ const result = {
     type: event.type,
     args: event.args?.map((arg) => arg.value || arg.description)
   })),
-  hasGameContent: afterContentLower.includes('this turn') && afterContentLower.includes('table log'),
+  hasGameContent: afterContentLower.includes('this turn') && afterContentLower.includes('damage report'),
   screenshots: [beforePath, afterPath]
 };
 

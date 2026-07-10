@@ -84,6 +84,7 @@ const PG_REPLACEMENTS = [
   [/WALK THE FUCK OUT/g, 'WALK OUT'],
   [/Walk the fuck out/gi, 'Walk out'],
   [/bullshit/gi, 'bad hand'],
+  [/\bdamn\b/gi, 'room'],
   [/Trash hand/gi, 'No-score hand'],
   [/\bfucking\b/gi, 'very'],
   [/\bfuck\b/gi, 'heck'],
@@ -207,19 +208,19 @@ function render() {
             <span>6</span>
           </div>
           <div>
-            <p>${adultMode ? 'NINE SIX / 21+ TABLE' : 'NINE SIX / PG TABLE'}</p>
-            <h1>NINE SIX.</h1>
-            <small>Two dice. One card. The hand is 9, 6, Queen.</small>
+            <p>${adultMode ? 'NINE SIX / ADULT CUT' : 'NINE SIX / CLEAN CUT'}</p>
+            <h1>NINE SIX</h1>
+            <small>Two dice. One face card. Land 9 / 6 / Q.</small>
           </div>
         </div>
 
         <div class="score-meter ${current.phase === 'settled' ? 'score-pop' : ''}" aria-label="Bank score ${state.totalScore}">
           <div>
-            <span>Bank</span>
+            <span>96 chase</span>
             <strong>${state.totalScore}</strong>
           </div>
           <div class="meter-track"><i style="width: ${progress}%"></i></div>
-          <small>${gameLost ? 'Walked out' : gameWon ? 'Bank 96 hit' : `Need exactly ${targetGap}`} / Pot ${tablePot} chips</small>
+          <small>${gameLost ? 'Walked out' : gameWon ? '96 nailed' : `${targetGap} to go`} / ${tablePot} fake chips burned</small>
         </div>
 
         <div class="control-stack">
@@ -242,9 +243,9 @@ function render() {
             </button>
           </div>
           <div class="table-tags" aria-label="Table tone">
-            <span>${adultMode ? '21+ tone' : 'PG tone'}</span>
-            <span>${TABLE_STAKE} chip ante</span>
-            <span>${adultMode ? 'uncensored calls' : 'clean calls'}</span>
+            <span>${adultMode ? 'adult cut' : 'clean cut'}</span>
+            <span>${TABLE_STAKE} fake chips</span>
+            <span>${adultMode ? 'mouth wide open' : 'clean calls'}</span>
           </div>
           ${jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, musicDuration, variant: 'desktop' })}
         </div>
@@ -295,7 +296,7 @@ function render() {
               <strong>${bestTurn}</strong>
             </article>
             <article>
-              <span>Heat</span>
+              <span>Vibe</span>
               <strong>${heatLevel}</strong>
             </article>
           </div>
@@ -317,7 +318,7 @@ function render() {
           </section>
 
           <section class="rules-card">
-            <h2>House Rules</h2>
+            <h2>How It Hits</h2>
             <p>${modeCopy(`Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS is a walk-out loss. Under 7 gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot busts back to ${BUST_RESET_SCORE}.`, `Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS ends the game. Under 7 gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot resets to ${BUST_RESET_SCORE}.`)}</p>
           </section>
         </aside>
@@ -339,8 +340,8 @@ function render() {
 
       <section class="history-section" aria-label="Turn history">
         <header>
-          <span>Log</span>
-          <h2>Table Log</h2>
+          <span>Receipts</span>
+          <h2>Damage Report</h2>
         </header>
         ${historyTable()}
       </section>
@@ -363,7 +364,7 @@ function render() {
         </button>
         <button type="button" class="command-table" data-action="table-tray" aria-expanded="${state.mobileTray === 'table'}">
           <span aria-hidden="true">96</span>
-          <b>Table</b>
+          <b>Control</b>
           <small>${adultMode ? 'Adult' : 'PG'}</small>
         </button>
       </nav>
@@ -1288,20 +1289,20 @@ function mobileTableTray(adultMode, playerRank, heatLevel) {
     <aside class="mobile-table-tray" aria-label="Table controls" aria-hidden="${state.mobileTray !== 'table'}">
       <header>
         <div>
-          <span>Table controls</span>
-          <strong>Set the room.</strong>
+          <span>Control booth</span>
+          <strong>Set the chaos.</strong>
         </div>
         <button type="button" class="tray-close" data-action="close-tray" aria-label="Close table controls" title="Close table controls">&times;</button>
       </header>
       <div class="table-control-grid">
         <button type="button" data-action="sound"><span>Sound</span><strong>${state.muted ? 'Off' : 'On'}</strong></button>
         <button type="button" data-action="tone-mode"><span>Language</span><strong>${adultMode ? 'Adult' : 'PG'}</strong></button>
-        <button type="button" data-action="daily" class="${state.playMode === 'daily' ? 'active' : ''}"><span>Mode</span><strong>${state.playMode === 'daily' ? 'Daily' : 'Free'}</strong></button>
+        <button type="button" data-action="daily" class="${state.playMode === 'daily' ? 'active' : ''}"><span>Mode</span><strong>${state.playMode === 'daily' ? 'Riot' : 'Free'}</strong></button>
         <button type="button" data-action="reset"><span>Session</span><strong>Reset</strong></button>
       </div>
       <div class="table-tray-stats">
         <div><span>Rank</span><strong>${playerRank.current.name}</strong></div>
-        <div><span>Heat</span><strong>${heatLevel}</strong></div>
+        <div><span>Vibe</span><strong>${heatLevel}</strong></div>
         <div><span>Bankroll</span><strong>${formatNumber(state.stats.bankroll)}</strong></div>
       </div>
       <p>Fictional chips only. No cash value.</p>
@@ -1358,10 +1359,10 @@ function viralConsole(current) {
     <section class="viral-console" aria-label="NINE SIX viral console">
       <article class="feature-card daily-card intel-card intel-daily ${state.intelView === 'daily' ? 'active' : ''}">
         <header>
-          <span>Daily Table</span>
+          <span>Daily Riot</span>
           <strong>${state.playMode === 'daily' ? 'Live seed' : 'Tap Daily'}</strong>
         </header>
-        <p>Everyone gets the same ${today} roll stream. Flex the code, beat your own bank, then share the damage.</p>
+        <p>Everybody gets the same ${today} roll stream. Same chaos. Same odds. Share the damage.</p>
         <div class="daily-code">${state.dailySeed}</div>
         <dl>
           <div><dt>Mode</dt><dd>${state.playMode === 'daily' ? 'Daily' : 'Free'}</dd></div>
@@ -1473,9 +1474,9 @@ function shareMomentForTurn(current, gameWon, gameLost) {
 function idleHype() {
   return {
     tone: 'idle',
-    kicker: 'Table open',
+    kicker: 'Mic check',
     title: 'D9. D6. Queen.',
-    body: 'The room gets quiet before the first throw.',
+    body: 'Hit the button and wake the whole damn screen up.',
     pills: ['Target 9', 'Target 6', 'Target Q']
   };
 }

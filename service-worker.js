@@ -1,11 +1,12 @@
-const CACHE_NAME = 'nine-six-shell-v17';
+const CACHE_NAME = 'nine-six-shell-v18';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './src/app/styles.css?v=20260710-overhaul-v17',
-  './src/app/experience.css?v=20260710-overhaul-v17',
-  './src/app/app.component.js?v=20260710-overhaul-v17',
+  './src/app/styles.css?v=20260710-impact-v18',
+  './src/app/experience.css?v=20260710-impact-v18',
+  './src/app/impact.css?v=20260710-impact-v18',
+  './src/app/app.component.js?v=20260710-impact-v18',
   './src/assets/nine-six-icon.svg'
 ];
 
