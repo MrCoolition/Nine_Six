@@ -752,6 +752,108 @@ button:hover:not(:disabled) {
   background: rgba(239, 238, 233, 0.985);
 }
 
+:root[data-skin="one-minimal"] .turn-panel,
+:root[data-skin="one-minimal"] .message-burst,
+:root[data-skin="one-minimal"] .end-game-curtain,
+:root[data-skin="one-minimal"] .win-fanfare {
+  color: #f7f6f2;
+}
+
+:root[data-skin="one-minimal"] .turn-panel strong,
+:root[data-skin="one-minimal"] .message-burst strong,
+:root[data-skin="one-minimal"] .win-copy strong,
+:root[data-skin="one-minimal"] .win-copy p,
+:root[data-skin="one-minimal"] .curtain-content > strong,
+:root[data-skin="one-minimal"] .curtain-content p {
+  color: #f7f6f2;
+}
+
+:root[data-skin="one-minimal"] .turn-panel span,
+:root[data-skin="one-minimal"] .turn-panel p,
+:root[data-skin="one-minimal"] .message-burst span,
+:root[data-skin="one-minimal"] .win-copy span,
+:root[data-skin="one-minimal"] .curtain-content > span {
+  color: #c8c9c7;
+}
+
+:root[data-skin="one-minimal"] .message-burst em {
+  color: rgba(255, 255, 255, 0.12);
+}
+
+:root[data-skin="one-minimal"] :is(
+  .showdown-banner.queen,
+  .showdown-banner.exact,
+  .showdown-banner.jackpot,
+  .showdown-banner.bust,
+  .showdown-banner.over,
+  .showdown-banner.walkout
+) strong,
+:root[data-skin="one-minimal"] :is(
+  .showdown-banner.queen,
+  .showdown-banner.exact,
+  .showdown-banner.jackpot,
+  .showdown-banner.bust,
+  .showdown-banner.over,
+  .showdown-banner.walkout
+) p {
+  color: #f7f6f2;
+}
+
+:root[data-skin="one-minimal"] :is(
+  .showdown-banner.queen,
+  .showdown-banner.exact,
+  .showdown-banner.jackpot,
+  .showdown-banner.bust,
+  .showdown-banner.over,
+  .showdown-banner.walkout
+) .hype-pills b {
+  color: #e5e5e2;
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+:root[data-skin="one-minimal"] :is(
+  .event-strip article.queen,
+  .event-strip article.exact,
+  .event-strip article.win,
+  .event-strip article.bust,
+  .event-strip article.over,
+  .event-strip article.walkout
+),
+:root[data-skin="one-minimal"] :is(
+  .event-strip article.queen,
+  .event-strip article.exact,
+  .event-strip article.win,
+  .event-strip article.bust,
+  .event-strip article.over,
+  .event-strip article.walkout
+) strong,
+:root[data-skin="one-minimal"] :is(
+  .event-strip article.queen,
+  .event-strip article.exact,
+  .event-strip article.win,
+  .event-strip article.bust,
+  .event-strip article.over,
+  .event-strip article.walkout
+) p {
+  color: #f7f6f2;
+}
+
+:root[data-skin="one-minimal"] :is(
+  .event-strip article.queen,
+  .event-strip article.exact,
+  .event-strip article.win,
+  .event-strip article.bust,
+  .event-strip article.over,
+  .event-strip article.walkout
+) span {
+  color: #c8c9c7;
+}
+
+:root[data-skin="one-minimal"] .boofball-stack i.filled,
+:root[data-skin="one-minimal"] .walkout .curtain-mark b {
+  color: #fffdf9;
+}
+
 :root[data-skin="sport-blue"] .table-zone {
   background:
     repeating-linear-gradient(0deg, rgba(225, 236, 255, 0.025) 0 1px, transparent 1px 28px),

@@ -242,7 +242,9 @@ if (viewportMobile) {
   const minimalState = await evalValue(`(() => ({
     skin: document.documentElement.dataset.skin,
     skinButtons: document.querySelectorAll('[data-action="skin"]').length,
-    overflow: document.documentElement.scrollWidth > window.innerWidth + 2
+    overflow: document.documentElement.scrollWidth > window.innerWidth + 2,
+    turnStrong: getComputedStyle(document.querySelector('.turn-panel strong')).color,
+    turnCopy: getComputedStyle(document.querySelector('.turn-panel p')).color
   }))()`);
   fragranceScreenshots.push(await saveScreenshot(`${screenshotPrefix}-locker-minimal.png`));
 
@@ -274,6 +276,8 @@ if (viewportMobile) {
   mobileArchiveOk = minimalState.skin === 'one-minimal'
     && minimalState.skinButtons === 6
     && !minimalState.overflow
+    && minimalState.turnStrong === 'rgb(247, 246, 242)'
+    && minimalState.turnCopy === 'rgb(200, 201, 199)'
     && leadersState.skin === 'one-minimal'
     && leadersState.tabCount === 5
     && leadersState.visible
