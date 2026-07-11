@@ -5,6 +5,7 @@ const BOOFBALL_LIMIT = 4;
 const JACKPOT_HAND = '9, 6, Q';
 const HISTORY_LIMIT = 14;
 const STORAGE_KEY = 'nine-six-player-v2';
+const MUSIC_STORAGE_KEY = 'nine-six-jukebox-v1';
 const DAILY_NAMESPACE = 'NINE-SIX-DAILY';
 const REVEAL_SPINS = 11;
 const REVEAL_DURATION_MS = 3000;
@@ -100,6 +101,7 @@ const cardSuits = [
   { code: 'C', symbol: '&clubs;', label: 'Clubs', color: 'black' }
 ];
 const queenRankIndex = cardRanks.indexOf('Q');
+const savedMusicPreferences = loadMusicPreferences();
 
 const dice = [
   {
@@ -143,10 +145,11 @@ const state = {
   playMode: 'free',
   toneMode: 'adult',
   musicPlaying: false,
-  musicVolume: 0.45,
+  musicVolume: savedMusicPreferences.volume ?? 0.45,
   musicError: '',
   musicTrackIndex: 0,
-  musicShuffle: true,
+  musicShuffle: savedMusicPreferences.shuffle ?? true,
+  musicAutoplay: savedMusicPreferences.autoplay ?? true,
   mobileTray: null,
   intelView: 'daily',
   endScreenDismissed: false,
@@ -319,7 +322,7 @@ function render() {
 
           <section class="rules-card">
             <h2>How It Hits</h2>
-            <p>${modeCopy(`Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS is a walk-out loss. Under 7 gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot busts back to ${BUST_RESET_SCORE}.`, `Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS ends the game. Under 7 gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot resets to ${BUST_RESET_SCORE}.`)}</p>
+            <p>${modeCopy(`Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS is a walk-out loss. 6 or under gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot busts back to ${BUST_RESET_SCORE}.`, `Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS ends the game. 6 or under gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot resets to ${BUST_RESET_SCORE}.`)}</p>
           </section>
         </aside>
       </section>
@@ -398,11 +401,18 @@ function jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, music
         <button type="button" data-action="music-next" aria-label="Next track" title="Next track"><span aria-hidden="true">&#9197;</span><b>Next</b></button>
         <button type="button" class="shuffle-button ${state.musicShuffle ? 'active' : ''}" data-action="music-shuffle" aria-pressed="${state.musicShuffle}" aria-label="Shuffle" title="Toggle shuffle"><span aria-hidden="true">&#8644;</span><b>${state.musicShuffle ? 'Shuffle' : 'Order'}</b></button>
       </div>
-      <label class="volume-control">
-        <span>Volume</span>
-        <input type="range" data-action="music-volume" min="0" max="100" value="${musicVolume}" aria-label="Music volume">
-        <b data-music-volume-value>${musicVolume}</b>
-      </label>
+      <div class="jukebox-settings">
+        <label class="volume-control">
+          <span>Volume</span>
+          <input type="range" data-action="music-volume" min="0" max="100" value="${musicVolume}" aria-label="Music volume">
+          <b data-music-volume-value>${musicVolume}</b>
+        </label>
+        <label class="autoplay-control">
+          <input type="checkbox" data-action="music-autoplay" ${state.musicAutoplay ? 'checked' : ''}>
+          <i aria-hidden="true"></i>
+          <span>Autoplay</span>
+        </label>
+      </div>
     </section>
   `;
 }
@@ -422,6 +432,7 @@ function bindActions() {
   bindClickAction('music-next', () => advanceMusicTrack(1, { autoplay: state.musicPlaying, forceOrder: true }));
   bindClickAction('music-shuffle', () => {
     state.musicShuffle = !state.musicShuffle;
+    saveMusicPreferences();
     render();
   });
   bindClickAction('tone-mode', () => {
@@ -461,6 +472,13 @@ function bindActions() {
   });
   root.querySelectorAll('[data-action="music-seek"]').forEach((input) => {
     input.addEventListener('input', (event) => seekMusic(event.target.value));
+  });
+  root.querySelectorAll('[data-action="music-autoplay"]').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      state.musicAutoplay = event.target.checked;
+      saveMusicPreferences();
+      render();
+    });
   });
 }
 
@@ -519,12 +537,16 @@ function bindMusicEvents() {
   music.addEventListener('loadedmetadata', syncMusicUi);
   music.addEventListener('timeupdate', syncMusicTimeline);
   music.addEventListener('ended', () => {
-    if (state.musicPlaying && !state.muted && isActiveGameTab()) {
+    state.musicPlaying = false;
+    if (state.musicAutoplay && !state.muted && isActiveGameTab()) {
       advanceMusicTrack(1, { autoplay: true });
+      return;
     }
+    state.musicError = state.musicAutoplay ? '' : 'Autoplay off.';
+    render();
   });
   music.addEventListener('error', () => {
-    if (!state.musicPlaying) {
+    if (!state.musicPlaying || !state.musicAutoplay) {
       state.musicError = 'Track unavailable.';
       render();
       return;
@@ -608,6 +630,31 @@ function savePlayerStats() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.stats));
   } catch {
     // Local progress is optional.
+  }
+}
+
+function loadMusicPreferences() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(MUSIC_STORAGE_KEY) || '{}');
+    return {
+      volume: Number.isFinite(stored.volume) ? Math.max(0, Math.min(1, stored.volume)) : undefined,
+      shuffle: typeof stored.shuffle === 'boolean' ? stored.shuffle : undefined,
+      autoplay: typeof stored.autoplay === 'boolean' ? stored.autoplay : undefined
+    };
+  } catch {
+    return {};
+  }
+}
+
+function saveMusicPreferences() {
+  try {
+    localStorage.setItem(MUSIC_STORAGE_KEY, JSON.stringify({
+      volume: state.musicVolume,
+      shuffle: state.musicShuffle,
+      autoplay: state.musicAutoplay
+    }));
+  } catch {
+    // Jukebox preferences are optional.
   }
 }
 
@@ -1025,6 +1072,7 @@ function setMusicVolume(value) {
   if (music) {
     music.volume = volume;
   }
+  saveMusicPreferences();
   const label = root.querySelector('[data-music-volume-value]');
   if (label) {
     label.textContent = String(Math.round(volume * 100));
@@ -1132,7 +1180,7 @@ function createTurn() {
     verdict = 'Trash hand. House sweeps that bullshit because you got too high. Final score is zero.';
   } else if (rawScore < 7) {
     finalScore = rawScore * 9;
-    verdict = `That's money. Under 7 gets paid x9 for ${finalScore}.`;
+    verdict = `That's money. 6 or under gets paid x9 for ${finalScore}.`;
   } else {
     finalScore = rawScore;
     verdict = `Respectable. Bank ${finalScore} and do not get cute.`;
