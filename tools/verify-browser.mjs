@@ -166,6 +166,13 @@ const hasCardRibbon = await evalValue('Boolean(document.querySelector(".card-rib
 const audioSrc = await evalValue('document.querySelector("#music-track")?.getAttribute("src") || ""');
 const initialJukeboxTitle = await evalValue('document.querySelector("[data-jukebox-title]")?.textContent.trim() || ""');
 const manifestHref = await evalValue('document.querySelector(\'link[rel="manifest"]\')?.getAttribute("href") || ""');
+const fragranceFeatures = await evalValue(`(() => ({
+  skinCount: document.querySelectorAll('[data-action="skin"]').length,
+  skin: document.documentElement.dataset.skin || '',
+  hasLeaderboard: Boolean(document.querySelector('.leaders-card')),
+  hasPlayerName: Boolean(document.querySelector('[data-action="player-name"]')),
+  hasAutoplay: Boolean(document.querySelector('[data-action="music-autoplay"]'))
+}))()`);
 const overlayState = await evalValue(
   'document.querySelector("[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay") ? "ERROR_OVERLAY" : "OK"'
 );
@@ -211,6 +218,70 @@ const layoutMetrics = await evalValue(`(() => {
     noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth + 2
   };
 })()`);
+let mobileArchiveOk = true;
+const fragranceScreenshots = [];
+let mobileArchiveStates = null;
+if (viewportMobile) {
+  const lockerTabCenter = await evalValue(`(() => {
+    const button = document.querySelector('[data-action="intel"][data-intel="progress"]');
+    button.scrollIntoView({ block: 'center' });
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(lockerTabCenter);
+  await pause(220);
+
+  const minimalSkinCenter = await evalValue(`(() => {
+    const button = document.querySelector('[data-action="skin"][data-skin="one-minimal"]');
+    button.scrollIntoView({ block: 'center' });
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(minimalSkinCenter);
+  await pause(260);
+  const minimalState = await evalValue(`(() => ({
+    skin: document.documentElement.dataset.skin,
+    skinButtons: document.querySelectorAll('[data-action="skin"]').length,
+    overflow: document.documentElement.scrollWidth > window.innerWidth + 2
+  }))()`);
+  fragranceScreenshots.push(await saveScreenshot(`${screenshotPrefix}-locker-minimal.png`));
+
+  const leadersTabCenter = await evalValue(`(() => {
+    const button = document.querySelector('[data-action="intel"][data-intel="leaders"]');
+    button.scrollIntoView({ block: 'center' });
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await clickAt(leadersTabCenter);
+  await pause(220);
+  const leadersState = await evalValue(`(() => {
+    const card = document.querySelector('.leaders-card');
+    const rect = card.getBoundingClientRect();
+    return {
+      skin: document.documentElement.dataset.skin,
+      tabCount: document.querySelectorAll('.intel-tabs button').length,
+      visible: rect.width > 0 && rect.height > 0 && getComputedStyle(card).display !== 'none',
+      playerName: Boolean(card.querySelector('[data-action="player-name"]')),
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 2
+    };
+  })()`);
+  fragranceScreenshots.push(await saveScreenshot(`${screenshotPrefix}-leaders.png`));
+  const restoredSkin = await evalValue(`(() => {
+    document.querySelector('[data-action="skin"][data-skin="drakkar-noir"]')?.click();
+    return document.documentElement.dataset.skin;
+  })()`);
+  await pause(560);
+  mobileArchiveOk = minimalState.skin === 'one-minimal'
+    && minimalState.skinButtons === 6
+    && !minimalState.overflow
+    && leadersState.skin === 'one-minimal'
+    && leadersState.tabCount === 5
+    && leadersState.visible
+    && leadersState.playerName
+    && !leadersState.overflow
+    && restoredSkin === 'drakkar-noir';
+  mobileArchiveStates = { minimalState, leadersState, restoredSkin };
+}
 if (viewportMobile) {
   const tableTrayCenter = await evalValue(`(() => {
     const button = document.querySelector('[data-action="table-tray"]');
@@ -391,17 +462,27 @@ const result = {
   jukeboxAfterNext,
   hasViralFeatures: bodyContentLower.includes('daily riot')
     && bodyContentLower.includes('odds / fairness')
-    && bodyContentLower.includes('progression')
+    && bodyContentLower.includes('fragrance archive')
+    && bodyContentLower.includes('table legends')
     && bodyContentLower.includes('fictional bankroll')
     && bodyContentLower.includes('fictional chips'),
+  hasFragranceCollection: fragranceFeatures.skinCount === 6
+    && ['drakkar-noir', 'cool-current', 'woods-96', 'fahrenheit-heat', 'one-minimal', 'sport-blue'].includes(fragranceFeatures.skin)
+    && fragranceFeatures.hasLeaderboard
+    && fragranceFeatures.hasPlayerName
+    && fragranceFeatures.hasAutoplay,
+  mobileArchiveOk,
+  mobileArchiveStates,
+  fragranceFeatures,
   hasPwa: manifestHref.includes('manifest.webmanifest'),
   overlayState,
   layoutMetrics,
   initialButton: buttonCenter.text,
   doubleClickGuarded: /off/i.test(soundAfterDoubleClick) && /on/i.test(soundAfterRestore),
+  soundGuardStates: { soundAfterDoubleClick, soundAfterRestore },
   modeToggleWorks: /PG/i.test(modeAfterPg)
     && /Adult/i.test(modeAfterAdult)
-    && (viewportMobile || (pgTextLower.includes('clean cut') && pgTextLower.includes('clean calls')))
+    && (viewportMobile || (pgTextLower.includes('clean cut') && pgTextLower.includes('drakkar noir')))
     && (!viewportMobile || pgText.includes('NINE SIX / CLEAN CUT'))
     && !/bitch|fuck|bullshit|talk shit|21\+ table/i.test(pgText),
   mobileLayoutOk: !viewportMobile || (
@@ -431,11 +512,11 @@ const result = {
     args: event.args?.map((arg) => arg.value || arg.description)
   })),
   hasGameContent: afterContentLower.includes('this turn') && afterContentLower.includes('damage report'),
-  screenshots: [beforePath, afterPath]
+  screenshots: [beforePath, afterPath, ...fragranceScreenshots]
 };
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.jukeboxNextWorks || !result.mobileJukeboxReady || !result.hasViralFeatures || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
+if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.mobileArchiveOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.jukeboxNextWorks || !result.mobileJukeboxReady || !result.hasViralFeatures || !result.hasFragranceCollection || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
   process.exitCode = 1;
 }

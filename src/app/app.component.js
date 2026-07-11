@@ -6,6 +6,9 @@ const JACKPOT_HAND = '9, 6, Q';
 const HISTORY_LIMIT = 14;
 const STORAGE_KEY = 'nine-six-player-v2';
 const MUSIC_STORAGE_KEY = 'nine-six-jukebox-v1';
+const PROFILE_STORAGE_KEY = 'nine-six-profile-v1';
+const LEADERBOARD_STORAGE_KEY = 'nine-six-leaderboard-v1';
+const LEADERBOARD_LIMIT = 30;
 const DAILY_NAMESPACE = 'NINE-SIX-DAILY';
 const REVEAL_SPINS = 11;
 const REVEAL_DURATION_MS = 3000;
@@ -35,10 +38,60 @@ const RANKS = [
   { name: 'NINE SIX Legend', minXp: 1400 }
 ];
 const UNLOCKS = [
-  { label: 'Gold dice skin', at: 120 },
-  { label: 'Neon queen cards', at: 360 },
+  { label: 'Chrome die finish', at: 120 },
+  { label: 'Velvet queen card', at: 360 },
   { label: 'Boo Choir pack', at: 760 },
-  { label: 'Legend table felt', at: 1400 }
+  { label: 'Legend monogram', at: 1400 }
+];
+const SKINS = [
+  {
+    key: 'drakkar-noir',
+    name: 'Drakkar Noir',
+    short: 'Noir',
+    note: 'Black glass / oxblood',
+    themeColor: '#050505',
+    swatches: ['#050505', '#eeeae1', '#941d31']
+  },
+  {
+    key: 'cool-current',
+    name: 'Cool Current',
+    short: 'Water',
+    note: 'Marine blue / cold chrome',
+    themeColor: '#031017',
+    swatches: ['#031017', '#137c99', '#dff5f7']
+  },
+  {
+    key: 'woods-96',
+    name: 'Woods 96',
+    short: 'Woods',
+    note: 'Deep forest / aged brass',
+    themeColor: '#07100b',
+    swatches: ['#07100b', '#2f4937', '#b69657']
+  },
+  {
+    key: 'fahrenheit-heat',
+    name: 'Fahrenheit Heat',
+    short: 'Heat',
+    note: 'Charcoal / ember / cognac',
+    themeColor: '#100705',
+    swatches: ['#100705', '#8f2f1b', '#d87b36']
+  },
+  {
+    key: 'one-minimal',
+    name: 'One Minimal',
+    short: 'One',
+    note: 'Frosted ivory / soft graphite',
+    themeColor: '#e8e7e1',
+    swatches: ['#e8e7e1', '#b9bab8', '#1b1c1e']
+  },
+  {
+    key: 'sport-blue',
+    name: 'Sport Blue',
+    short: 'Sport',
+    note: 'Cobalt glass / bright aluminum',
+    themeColor: '#061126',
+    swatches: ['#061126', '#1557b7', '#c8ddff']
+  }
 ];
 const JACKPOT_CALLOUTS = [
   './src/assets/jackpot-bradford.mp3',
@@ -102,6 +155,7 @@ const cardSuits = [
 ];
 const queenRankIndex = cardRanks.indexOf('Q');
 const savedMusicPreferences = loadMusicPreferences();
+const savedProfile = loadProfile();
 
 const dice = [
   {
@@ -150,6 +204,10 @@ const state = {
   musicTrackIndex: 0,
   musicShuffle: savedMusicPreferences.shuffle ?? true,
   musicAutoplay: savedMusicPreferences.autoplay ?? true,
+  skin: savedProfile.skin,
+  playerName: savedProfile.playerName,
+  leaderboard: loadLeaderboard(),
+  sessionId: createSessionId(),
   mobileTray: null,
   intelView: 'daily',
   endScreenDismissed: false,
@@ -174,6 +232,7 @@ const state = {
 
 const root = document.querySelector('#game-root');
 
+applySkin(state.skin, { animate: false });
 bindPageAudioGuards();
 bindMusicEvents();
 registerServiceWorker();
@@ -201,6 +260,7 @@ function render() {
   const targetGap = Math.max(0, TARGET_SCORE - state.totalScore);
   const adultMode = isAdultMode();
   const playerRank = rankForXp(state.stats.xp);
+  const activeSkin = skinByKey(state.skin);
 
   root.innerHTML = `
     <main class="game-shell ${moodClass} ${rollingClass} rank-${playerRank.index} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''} tray-${state.mobileTray ?? 'closed'} intel-${state.intelView}">
@@ -248,7 +308,7 @@ function render() {
           <div class="table-tags" aria-label="Table tone">
             <span>${adultMode ? 'adult cut' : 'clean cut'}</span>
             <span>${TABLE_STAKE} fake chips</span>
-            <span>${adultMode ? 'mouth wide open' : 'clean calls'}</span>
+            <span>${activeSkin.name}</span>
           </div>
           ${jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, musicDuration, variant: 'desktop' })}
         </div>
@@ -336,6 +396,7 @@ function render() {
         ${intelTab('daily', 'Daily')}
         ${intelTab('odds', 'Odds')}
         ${intelTab('progress', 'Locker')}
+        ${intelTab('leaders', 'Leaders')}
         ${intelTab('log', 'Log')}
       </nav>
 
@@ -466,6 +527,25 @@ function bindActions() {
     state.intelView = event.currentTarget.dataset.intel || 'daily';
     render();
   });
+  root.querySelectorAll('[data-action="skin"]').forEach((button) => {
+    button.addEventListener('click', (event) => setSkin(event.currentTarget.dataset.skin));
+  });
+  root.querySelectorAll('[data-action="open-intel"]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      state.mobileTray = null;
+      state.intelView = event.currentTarget.dataset.intel || 'progress';
+      render();
+      window.requestAnimationFrame(() => document.querySelector('.intel-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    });
+  });
+  root.querySelectorAll('[data-action="player-name"]').forEach((input) => {
+    input.addEventListener('change', (event) => setPlayerName(event.target.value));
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.currentTarget.blur();
+      }
+    });
+  });
 
   root.querySelectorAll('[data-action="music-volume"]').forEach((input) => {
     input.addEventListener('input', (event) => setMusicVolume(event.target.value));
@@ -588,6 +668,87 @@ function displayCopy(value) {
   return PG_REPLACEMENTS.reduce((copy, [pattern, replacement]) => copy.replace(pattern, replacement), text);
 }
 
+function defaultProfile() {
+  return {
+    playerName: 'PLAYER 96',
+    skin: SKINS[0].key
+  };
+}
+
+function loadProfile() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || '{}');
+    return {
+      playerName: normalizePlayerName(stored.playerName),
+      skin: skinByKey(stored.skin).key
+    };
+  } catch {
+    return defaultProfile();
+  }
+}
+
+function saveProfile() {
+  try {
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({
+      playerName: state.playerName,
+      skin: state.skin
+    }));
+  } catch {
+    // A custom table identity is optional.
+  }
+}
+
+function skinByKey(key) {
+  return SKINS.find((skin) => skin.key === key) ?? SKINS[0];
+}
+
+function setSkin(key) {
+  const skin = skinByKey(key);
+  if (skin.key === state.skin) {
+    return;
+  }
+
+  state.skin = skin.key;
+  applySkin(skin.key);
+  saveProfile();
+  render();
+}
+
+function applySkin(key, { animate = true } = {}) {
+  const skin = skinByKey(key);
+  document.documentElement.dataset.skin = skin.key;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', skin.themeColor);
+
+  if (animate) {
+    document.documentElement.classList.add('skin-changing');
+    window.setTimeout(() => document.documentElement.classList.remove('skin-changing'), 520);
+  }
+}
+
+function setPlayerName(value) {
+  state.playerName = normalizePlayerName(value);
+  saveProfile();
+  render();
+}
+
+function normalizePlayerName(value) {
+  const normalized = String(value ?? '')
+    .replace(/[^A-Za-z0-9 ._'-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 16);
+  return normalized || defaultProfile().playerName;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function defaultPlayerStats() {
   return {
     bankroll: 960,
@@ -658,6 +819,89 @@ function saveMusicPreferences() {
   }
 }
 
+function createSessionId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function loadLeaderboard() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(LEADERBOARD_STORAGE_KEY) || '[]');
+    if (!Array.isArray(stored)) {
+      return [];
+    }
+
+    return stored
+      .map((entry) => ({
+        sessionId: String(entry.sessionId ?? ''),
+        playerName: normalizePlayerName(entry.playerName),
+        result: entry.result === 'win' ? 'win' : 'walkout',
+        bank: Math.max(0, Math.min(TARGET_SCORE, Number(entry.bank) || 0)),
+        turns: Math.max(1, Number(entry.turns) || 1),
+        boofballs: Math.max(0, Math.min(BOOFBALL_LIMIT, Number(entry.boofballs) || 0)),
+        bestHand: Math.max(0, Number(entry.bestHand) || 0),
+        perfect: Boolean(entry.perfect),
+        mode: entry.mode === 'daily' ? 'daily' : 'free',
+        skin: skinByKey(entry.skin).key,
+        completedAt: String(entry.completedAt ?? '')
+      }))
+      .sort(compareLeaderboardEntries)
+      .slice(0, LEADERBOARD_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function saveLeaderboard() {
+  try {
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(state.leaderboard));
+  } catch {
+    // Completed-run history is optional.
+  }
+}
+
+function recordCompletedRun(turn) {
+  if ((!turn.exactWin && !turn.walkOut) || state.leaderboard.some((entry) => entry.sessionId === state.sessionId)) {
+    return;
+  }
+
+  const entry = {
+    sessionId: state.sessionId,
+    playerName: state.playerName,
+    result: turn.exactWin ? 'win' : 'walkout',
+    bank: turn.totalAfter ?? state.totalScore,
+    turns: turn.round ?? state.round,
+    boofballs: turn.boofballsAfter ?? state.boofballs,
+    bestHand: state.history.reduce((best, item) => Math.max(best, item.handScore ?? item.finalScore ?? 0), 0),
+    perfect: isPerfectNineSix(turn),
+    mode: state.playMode,
+    skin: state.skin,
+    completedAt: new Date().toISOString()
+  };
+
+  state.leaderboard = [entry, ...state.leaderboard]
+    .sort(compareLeaderboardEntries)
+    .slice(0, LEADERBOARD_LIMIT);
+  saveLeaderboard();
+}
+
+function compareLeaderboardEntries(left, right) {
+  const leftWon = left.result === 'win';
+  const rightWon = right.result === 'win';
+  if (leftWon !== rightWon) return leftWon ? -1 : 1;
+
+  if (leftWon) {
+    if (left.perfect !== right.perfect) return left.perfect ? -1 : 1;
+    if (left.turns !== right.turns) return left.turns - right.turns;
+    if (left.boofballs !== right.boofballs) return left.boofballs - right.boofballs;
+  } else {
+    if (left.bank !== right.bank) return right.bank - left.bank;
+    if (left.turns !== right.turns) return left.turns - right.turns;
+  }
+
+  if (left.bestHand !== right.bestHand) return right.bestHand - left.bestHand;
+  return String(right.completedAt).localeCompare(String(left.completedAt));
+}
+
 function recordSettledTurn(turn) {
   const handScore = turn.handScore ?? turn.finalScore;
   const wasFirstTurn = turn.round === 1;
@@ -699,6 +943,7 @@ function recordSettledTurn(turn) {
     state.stats.daily.bestBank = Math.max(state.stats.daily.bestBank, turn.totalAfter ?? 0);
   }
 
+  recordCompletedRun(turn);
   savePlayerStats();
 }
 
@@ -901,6 +1146,7 @@ function resetGame() {
   state.history = [];
   state.boofballs = 0;
   state.dailyRollIndex = 0;
+  state.sessionId = createSessionId();
   state.shareNotice = '';
   state.lastCalloutByType = {};
   state.mobileTray = null;
@@ -1346,12 +1592,15 @@ function mobileTableTray(adultMode, playerRank, heatLevel) {
         <button type="button" data-action="sound"><span>Sound</span><strong>${state.muted ? 'Off' : 'On'}</strong></button>
         <button type="button" data-action="tone-mode"><span>Language</span><strong>${adultMode ? 'Adult' : 'PG'}</strong></button>
         <button type="button" data-action="daily" class="${state.playMode === 'daily' ? 'active' : ''}"><span>Mode</span><strong>${state.playMode === 'daily' ? 'Riot' : 'Free'}</strong></button>
+        <button type="button" data-action="open-intel" data-intel="progress"><span>Skin</span><strong>${skinByKey(state.skin).short}</strong></button>
+        <button type="button" data-action="open-intel" data-intel="leaders"><span>Board</span><strong>Leaders</strong></button>
         <button type="button" data-action="reset"><span>Session</span><strong>Reset</strong></button>
       </div>
       <div class="table-tray-stats">
         <div><span>Rank</span><strong>${playerRank.current.name}</strong></div>
         <div><span>Vibe</span><strong>${heatLevel}</strong></div>
         <div><span>Bankroll</span><strong>${formatNumber(state.stats.bankroll)}</strong></div>
+        <div><span>Skin</span><strong>${skinByKey(state.skin).name}</strong></div>
       </div>
       <p>Fictional chips only. No cash value.</p>
     </aside>
@@ -1435,21 +1684,108 @@ function viralConsole(current) {
 
       <article class="feature-card progress-card intel-card intel-progress ${state.intelView === 'progress' ? 'active' : ''}">
         <header>
-          <span>Progression</span>
-          <strong>${rank.current.name}</strong>
+          <span>Fragrance Archive / 90s collection</span>
+          <strong>${skinByKey(state.skin).name}</strong>
         </header>
-        <div class="bankroll-line">
-          <span>Fictional bankroll</span>
-          <b>${formatNumber(state.stats.bankroll)}</b>
+        <div class="locker-rank-line">
+          <div>
+            <span>Table rank</span>
+            <strong>${rank.current.name}</strong>
+          </div>
+          <div>
+            <span>Fictional bankroll</span>
+            <strong>${formatNumber(state.stats.bankroll)}</strong>
+          </div>
         </div>
         <div class="rank-meter"><i style="width: ${rankProgress}%"></i></div>
         <small>${nextRank ? `${nextRank.minXp - state.stats.xp} XP to ${nextRank.name}` : 'Top table unlocked'}</small>
+        ${skinLocker()}
         <div class="unlock-row">
           ${UNLOCKS.map((unlock) => `<span class="${state.stats.xp >= unlock.at ? 'unlocked' : ''}">${unlock.label}</span>`).join('')}
         </div>
         <button type="button" data-action="install">Install game</button>
       </article>
+
+      ${leaderboardCard()}
     </section>
+  `;
+}
+
+function skinLocker() {
+  return `
+    <div class="skin-locker" aria-label="Table skin selection">
+      <div class="skin-grid">
+        ${SKINS.map((skin) => `
+          <button type="button" class="skin-option ${state.skin === skin.key ? 'active' : ''}" data-action="skin" data-skin="${skin.key}" aria-pressed="${state.skin === skin.key}" title="${skin.note}">
+            <span class="skin-swatch" aria-hidden="true">
+              ${skin.swatches.map((color) => `<i style="background:${color}"></i>`).join('')}
+            </span>
+            <span class="skin-name">
+              <strong>${skin.name}</strong>
+              <small>${skin.note}</small>
+            </span>
+            <b aria-hidden="true">${state.skin === skin.key ? 'ON' : ''}</b>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function leaderboardCard() {
+  const entries = state.leaderboard.slice(0, 10);
+
+  return `
+    <article class="feature-card leaders-card intel-card intel-leaders ${state.intelView === 'leaders' ? 'active' : ''}">
+      <header>
+        <span>Table Legends / this device</span>
+        <strong>${entries.length ? `Top ${entries.length}` : 'Open board'}</strong>
+      </header>
+      <div class="leader-identity">
+        <label>
+          <span>Your table name</span>
+          <input type="text" data-action="player-name" value="${escapeHtml(state.playerName)}" maxlength="16" autocomplete="nickname" spellcheck="false" aria-label="Leaderboard table name">
+        </label>
+        <p>Wins rank first: perfect hands, then fewer turns and fewer BOOFBALLS. Walkouts rank by highest bank.</p>
+      </div>
+      ${entries.length ? `
+        <div class="leaderboard-frame">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Player</th><th>Result</th><th>Turns</th><th>Bank</th></tr>
+            </thead>
+            <tbody>
+              ${entries.map((entry, index) => leaderboardRow(entry, index)).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : `
+        <div class="leaderboard-empty">
+          <strong>The board is clean.</strong>
+          <span>Finish at exact 96 or take the BOOF walk to post the first run.</span>
+        </div>
+      `}
+      <small>Local standings only. A verified global board needs accounts and a hosted score service.</small>
+    </article>
+  `;
+}
+
+function leaderboardRow(entry, index) {
+  const result = entry.result === 'win'
+    ? entry.perfect ? '9 / 6 / Q' : 'EXACT 96'
+    : 'WALKOUT';
+
+  return `
+    <tr class="leader-${entry.result}">
+      <td><b>${index + 1}</b></td>
+      <td>
+        <strong>${escapeHtml(entry.playerName)}</strong>
+        <span>${skinByKey(entry.skin).short} / ${entry.mode === 'daily' ? 'Daily' : 'Free'}</span>
+      </td>
+      <td><i>${result}</i></td>
+      <td>${entry.turns}</td>
+      <td>${entry.bank}</td>
+    </tr>
   `;
 }
 

@@ -1,12 +1,13 @@
-const CACHE_NAME = 'nine-six-shell-v19';
+const CACHE_NAME = 'nine-six-shell-v20';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './src/app/styles.css?v=20260710-noir-v19',
-  './src/app/experience.css?v=20260710-noir-v19',
-  './src/app/noir.css?v=20260710-noir-v19',
-  './src/app/app.component.js?v=20260710-noir-v19',
+  './src/app/styles.css?v=20260711-fragrance-v20',
+  './src/app/experience.css?v=20260711-fragrance-v20',
+  './src/app/noir.css?v=20260711-fragrance-v20',
+  './src/app/skins.css?v=20260711-fragrance-v20',
+  './src/app/app.component.js?v=20260711-fragrance-v20',
   './src/assets/nine-six-icon.svg'
 ];
 
