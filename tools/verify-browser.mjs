@@ -218,6 +218,57 @@ const layoutMetrics = await evalValue(`(() => {
     noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth + 2
   };
 })()`);
+const howToLaunchCenter = await evalValue(`(() => {
+  const button = Array.from(document.querySelectorAll('[data-action="open-how"]')).find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+  const rect = button.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+})()`);
+await clickAt(howToLaunchCenter);
+await pause(820);
+const howToState = await evalValue(`(() => {
+  const dialog = document.querySelector('[data-testid="how-to-playbook"]');
+  const manual = dialog?.querySelector('.playbook-manual');
+  const copy = dialog?.textContent || '';
+  const boof = Array.from(dialog?.querySelectorAll('.playbook-boof b') || []).map((node) => node.textContent).join('');
+  return {
+    open: Boolean(dialog),
+    bodyLocked: getComputedStyle(document.body).overflow === 'hidden',
+    targetPieces: dialog?.querySelectorAll('.target-piece').length || 0,
+    payoutBands: dialog?.querySelectorAll('.payout-band').length || 0,
+    boof,
+    hasMission: copy.includes('Bank exactly') && copy.includes('96'),
+    hasGapMath: copy.includes('9 - D9') && copy.includes('6 - D6') && copy.includes('Q = 0 / J or K = 1'),
+    hasPayoutRules: copy.includes('Multiply x9') && copy.includes('Raw 7-9') && copy.includes('Raw 10+'),
+    hasFinishRules: copy.includes('Bust to 69') && copy.includes('You win'),
+    noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth + 2
+      && manual.scrollWidth <= manual.clientWidth + 2,
+    closeFocused: document.activeElement?.classList.contains('playbook-close') || false
+  };
+})()`);
+const howToPath = await saveScreenshot(`${screenshotPrefix}-how-to-play.png`);
+const howToCloseCenter = await evalValue(`(() => {
+  const button = document.querySelector('.playbook-close');
+  const rect = button.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+})()`);
+await clickAt(howToCloseCenter);
+await pause(220);
+const howToClosed = await evalValue('!document.querySelector(\'[data-testid="how-to-playbook"]\') && getComputedStyle(document.body).overflow !== "hidden"');
+const hasHowToPlaybook = howToState.open
+  && howToState.bodyLocked
+  && howToState.targetPieces === 3
+  && howToState.payoutBands === 4
+  && howToState.boof === 'BOOF'
+  && howToState.hasMission
+  && howToState.hasGapMath
+  && howToState.hasPayoutRules
+  && howToState.hasFinishRules
+  && howToState.noHorizontalOverflow
+  && howToState.closeFocused
+  && howToClosed;
 let mobileArchiveOk = true;
 const fragranceScreenshots = [];
 let mobileArchiveStates = null;
@@ -475,6 +526,9 @@ const result = {
     && fragranceFeatures.hasLeaderboard
     && fragranceFeatures.hasPlayerName
     && fragranceFeatures.hasAutoplay,
+  hasHowToPlaybook,
+  howToState,
+  howToClosed,
   mobileArchiveOk,
   mobileArchiveStates,
   fragranceFeatures,
@@ -516,11 +570,11 @@ const result = {
     args: event.args?.map((arg) => arg.value || arg.description)
   })),
   hasGameContent: afterContentLower.includes('this turn') && afterContentLower.includes('damage report'),
-  screenshots: [beforePath, afterPath, ...fragranceScreenshots]
+  screenshots: [beforePath, howToPath, afterPath, ...fragranceScreenshots]
 };
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.mobileArchiveOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.jukeboxNextWorks || !result.mobileJukeboxReady || !result.hasViralFeatures || !result.hasFragranceCollection || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
+if (!result.loaded || !result.hasCorrectTable || !result.hasFaceCardSlot || !result.hasFaceCardRoll || !result.hasMessageBurst || !result.doubleClickGuarded || !result.modeToggleWorks || !result.mobileLayoutOk || !result.mobileArchiveOk || !result.hasNoAutoRoll || !result.hasNoCardRibbon || !result.hasNoHuntCopy || !result.hasMusic || !result.jukeboxNextWorks || !result.mobileJukeboxReady || !result.hasViralFeatures || !result.hasFragranceCollection || !result.hasHowToPlaybook || !result.hasPwa || result.overlayState !== 'OK' || !result.rollUpdated || !result.historyRows || result.runtimeErrors.length) {
   process.exitCode = 1;
 }

@@ -209,6 +209,7 @@ const state = {
   leaderboard: loadLeaderboard(),
   sessionId: createSessionId(),
   mobileTray: null,
+  howToOpen: false,
   intelView: 'daily',
   endScreenDismissed: false,
   shareNotice: '',
@@ -239,6 +240,8 @@ registerServiceWorker();
 render();
 
 function render() {
+  document.body.classList.toggle('playbook-open', state.howToOpen);
+
   const current = state.current ?? emptyTurn();
   const currentHype = current.hype ?? idleHype();
   const moodClass = `mood-${currentHype.tone || 'idle'}`;
@@ -263,18 +266,21 @@ function render() {
   const activeSkin = skinByKey(state.skin);
 
   root.innerHTML = `
-    <main class="game-shell ${moodClass} ${rollingClass} rank-${playerRank.index} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''} tray-${state.mobileTray ?? 'closed'} intel-${state.intelView}">
+    <main class="game-shell ${moodClass} ${rollingClass} rank-${playerRank.index} ${gameWon ? 'game-won' : ''} ${gameLost ? 'game-lost' : ''} tray-${state.mobileTray ?? 'closed'} intel-${state.intelView}" ${state.howToOpen ? 'inert aria-hidden="true"' : ''}>
       <section class="score-band" aria-label="NINE SIX scoreboard">
         <div class="brand-lockup">
           <div class="brand-mark" aria-hidden="true">
             <span>9</span>
             <span>6</span>
           </div>
-          <div>
+          <div class="brand-copy">
             <p>${adultMode ? 'NINE SIX / ADULT CUT' : 'NINE SIX / CLEAN CUT'}</p>
             <h1>NINE SIX</h1>
             <small>Two dice. One face card. Land 9 / 6 / Q.</small>
           </div>
+          <button type="button" class="brand-how-button" data-action="open-how" aria-label="How to play NINE SIX" title="How to play">
+            <span aria-hidden="true">?</span>
+          </button>
         </div>
 
         <div class="score-meter ${current.phase === 'settled' ? 'score-pop' : ''}" aria-label="Bank score ${state.totalScore}">
@@ -383,6 +389,10 @@ function render() {
           <section class="rules-card">
             <h2>How It Hits</h2>
             <p>${modeCopy(`Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS is a walk-out loss. 6 or under gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot busts back to ${BUST_RESET_SCORE}.`, `Base hand = (9 - D9) + (6 - D6) + Queen gap. Over 9 scores zero and stacks a BOOFBALL. Four BOOFBALLS ends the game. 6 or under gets paid x9. The bank must land exactly ${TARGET_SCORE}. Overshoot resets to ${BUST_RESET_SCORE}.`)}</p>
+            <button type="button" class="rules-playbook-button" data-action="open-how">
+              <span aria-hidden="true">96</span>
+              <b>Open the full playbook</b>
+            </button>
           </section>
         </aside>
       </section>
@@ -433,6 +443,7 @@ function render() {
         </button>
       </nav>
     </main>
+    ${howToPlaybook()}
   `;
 
   bindActions();
@@ -480,6 +491,20 @@ function jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, music
 
 function bindActions() {
   bindClickAction('roll', () => rollTurn());
+  bindClickAction('open-how', () => {
+    state.mobileTray = null;
+    state.howToOpen = true;
+    render();
+    window.requestAnimationFrame(() => root.querySelector('.playbook-close')?.focus());
+  });
+  bindClickAction('close-how', () => {
+    state.howToOpen = false;
+    render();
+    window.requestAnimationFrame(() => {
+      const launchers = Array.from(root.querySelectorAll('[data-action="open-how"]'));
+      launchers.find((button) => button.getClientRects().length)?.focus();
+    });
+  });
   bindClickAction('reset', () => resetGame());
   bindClickAction('sound', () => {
     state.muted = !state.muted;
@@ -571,6 +596,13 @@ function bindClickAction(action, callback) {
 }
 
 function bindPageAudioGuards() {
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.howToOpen) {
+      state.howToOpen = false;
+      render();
+    }
+  });
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') {
       stopAllAudio({ cancelRoll: true, pauseMusic: true });
@@ -1589,6 +1621,7 @@ function mobileTableTray(adultMode, playerRank, heatLevel) {
         <button type="button" class="tray-close" data-action="close-tray" aria-label="Close table controls" title="Close table controls">&times;</button>
       </header>
       <div class="table-control-grid">
+        <button type="button" data-action="open-how"><span>How to play</span><strong>Playbook</strong></button>
         <button type="button" data-action="sound"><span>Sound</span><strong>${state.muted ? 'Off' : 'On'}</strong></button>
         <button type="button" data-action="tone-mode"><span>Language</span><strong>${adultMode ? 'Adult' : 'PG'}</strong></button>
         <button type="button" data-action="daily" class="${state.playMode === 'daily' ? 'active' : ''}"><span>Mode</span><strong>${state.playMode === 'daily' ? 'Riot' : 'Free'}</strong></button>
@@ -1604,6 +1637,146 @@ function mobileTableTray(adultMode, playerRank, heatLevel) {
       </div>
       <p>Fictional chips only. No cash value.</p>
     </aside>
+  `;
+}
+
+function howToPlaybook() {
+  if (!state.howToOpen) {
+    return '';
+  }
+
+  return `
+    <section class="how-to-playbook" role="dialog" aria-modal="true" aria-labelledby="how-to-title" data-testid="how-to-playbook">
+      <button type="button" class="playbook-scrim" data-action="close-how" aria-label="Close playing instructions"></button>
+      <article class="playbook-manual">
+        <header class="playbook-header">
+          <div class="playbook-title-lockup">
+            <span>Official backroom playbook</span>
+            <h2 id="how-to-title">HOW TO NINE SIX</h2>
+            <p>Master the gaps. Survive the rack. Own 96.</p>
+          </div>
+          <button type="button" class="playbook-close" data-action="close-how" aria-label="Close playing instructions" title="Close">&times;</button>
+        </header>
+
+        <div class="playbook-scroll">
+          <section class="playbook-mission" aria-labelledby="mission-title">
+            <div>
+              <span id="mission-title">The mission</span>
+              <strong>Bank exactly <b>96</b>.</strong>
+              <p>Build your bank one hand at a time. Overshoot 96 and you bust back to 69. Fill the BOOF rack and the session is done.</p>
+            </div>
+            <div class="perfect-lock" aria-label="Perfect hand: nine, six, Queen is an instant win">
+              <small>Perfect hand</small>
+              <div aria-hidden="true"><i>9</i><i>6</i><i>Q</i></div>
+              <b>Instant win</b>
+            </div>
+          </section>
+
+          <section class="playbook-section hand-section" aria-labelledby="hand-title">
+            <header>
+              <span>01 / Build the hand</span>
+              <h3 id="hand-title">Roll. Roll. Draw.</h3>
+              <p>One nine-sided die, one six-sided die, then one face card. The deck only deals Jack, Queen, or King.</p>
+            </header>
+            <div class="target-row">
+              <div class="target-piece nine-target">
+                <small>Nine die</small>
+                <b>9</b>
+                <span>9 sides / target 9</span>
+              </div>
+              <i class="target-join" aria-hidden="true">+</i>
+              <div class="target-piece six-target">
+                <small>Six die</small>
+                <b>6</b>
+                <span>6 sides / target 6</span>
+              </div>
+              <i class="target-join" aria-hidden="true">+</i>
+              <div class="target-piece queen-target">
+                <small>Face card</small>
+                <b>Q</b>
+                <span>J / Q / K / target Q</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="playbook-section math-section" aria-labelledby="math-title">
+            <header>
+              <span>02 / Count the gaps</span>
+              <h3 id="math-title">Closer is better.</h3>
+              <p>Count how far each result is from its target, then add the three gaps.</p>
+            </header>
+            <div class="gap-equation" aria-label="Nine minus the nine die, plus six minus the six die, plus the card gap">
+              <b><small>D9 gap</small>9 - D9</b>
+              <i aria-hidden="true">+</i>
+              <b><small>D6 gap</small>6 - D6</b>
+              <i aria-hidden="true">+</i>
+              <b><small>Card gap</small>Q = 0 / J or K = 1</b>
+              <i aria-hidden="true">=</i>
+              <strong>RAW HAND</strong>
+            </div>
+            <div class="example-hand">
+              <span>Example hand</span>
+              <b>[8, 5, J]</b>
+              <strong>1 + 1 + 1 = 3</strong>
+              <i aria-hidden="true">&#8594;</i>
+              <em>3 x 9 = +27</em>
+            </div>
+          </section>
+
+          <section class="playbook-section payout-section" aria-labelledby="payout-title">
+            <header>
+              <span>03 / Settle the damage</span>
+              <h3 id="payout-title">Know your lane.</h3>
+              <p>Your raw hand decides what reaches the bank.</p>
+            </header>
+            <div class="payout-bands">
+              <div class="payout-band perfect">
+                <span>9 / 6 / Q</span>
+                <strong>Perfect</strong>
+                <b>Instant bank 96</b>
+              </div>
+              <div class="payout-band money">
+                <span>Raw 1-6</span>
+                <strong>Money hand</strong>
+                <b>Multiply x9</b>
+              </div>
+              <div class="payout-band bank">
+                <span>Raw 7-9</span>
+                <strong>Bank it</strong>
+                <b>Add the raw score</b>
+              </div>
+              <div class="payout-band no-score">
+                <span>Raw 10+</span>
+                <strong>NO SCORE</strong>
+                <b>+1 BOOFBALL</b>
+              </div>
+            </div>
+          </section>
+
+          <section class="survival-rules" aria-label="Winning, bust, and BOOFBALL rules">
+            <div class="survival-rule exact-rule">
+              <span>Land the bank</span>
+              <b>= 96</b>
+              <strong>You win.</strong>
+            </div>
+            <div class="survival-rule bust-rule">
+              <span>Go over</span>
+              <b>&gt; 96</b>
+              <strong>Bust to 69.</strong>
+            </div>
+            <div class="survival-rule boof-rule">
+              <div class="playbook-boof" aria-label="Four BOOFBALLS spell BOOF"><b>B</b><b>O</b><b>O</b><b>F</b></div>
+              <strong>${modeCopy('Four balls. Walk the fuck out.', 'Four balls. The run ends.')}</strong>
+            </div>
+          </section>
+        </div>
+
+        <footer class="playbook-footer">
+          <p>Fictional chips. No cash value. Very real bragging rights.</p>
+          <button type="button" class="primary-action" data-action="close-how">Got it. Roll the hand.</button>
+        </footer>
+      </article>
+    </section>
   `;
 }
 
