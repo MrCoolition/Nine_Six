@@ -1,7 +1,16 @@
-const TARGET_SCORE = 96;
-const BUST_RESET_SCORE = 69;
+import {
+  NINE_SIX_BOOFBALL_LIMIT,
+  NINE_SIX_BUST_RESET,
+  NINE_SIX_TARGET,
+  scoreNineSixHand,
+  settleNineSixBank
+} from './core/game-rules.js';
+import { createPartyController } from './party/party-controller.js';
+
+const TARGET_SCORE = NINE_SIX_TARGET;
+const BUST_RESET_SCORE = NINE_SIX_BUST_RESET;
 const TABLE_STAKE = 25;
-const BOOFBALL_LIMIT = 4;
+const BOOFBALL_LIMIT = NINE_SIX_BOOFBALL_LIMIT;
 const JACKPOT_HAND = '9, 6, Q';
 const HISTORY_LIMIT = 14;
 const STORAGE_KEY = 'nine-six-player-v2';
@@ -232,12 +241,25 @@ const state = {
 };
 
 const root = document.querySelector('#game-root');
+const partyRoot = document.querySelector('#party-root');
+const partyController = createPartyController({
+  root: partyRoot,
+  onExit: () => {
+    root.hidden = false;
+    state.actionTimes = {};
+    render();
+  }
+});
 
 applySkin(state.skin, { animate: false });
+primeMusicElement();
 bindPageAudioGuards();
 bindMusicEvents();
 registerServiceWorker();
 render();
+if (partyController.shouldOpenFromUrl() || hasAuthCallback()) {
+  openPartyMode();
+}
 
 function render() {
   document.body.classList.toggle('playbook-open', state.howToOpen);
@@ -306,6 +328,9 @@ function render() {
             </button>
             <button type="button" class="mode-action ${adultMode ? 'adult' : 'pg'}" data-action="tone-mode" data-short="${adultMode ? 'Adult' : 'PG'}" aria-pressed="${adultMode ? 'true' : 'false'}">
               ${adultMode ? 'Adult' : 'PG'}
+            </button>
+            <button type="button" class="party-mode-action" data-action="party" data-short="Party">
+              Party tables
             </button>
             <button type="button" class="daily-action ${state.playMode === 'daily' ? 'active' : ''}" data-action="daily" data-short="${state.playMode === 'daily' ? 'Daily' : 'Free'}" ${state.rolling ? 'disabled' : ''}>
               ${state.playMode === 'daily' ? 'Daily on' : 'Free play'}
@@ -441,6 +466,11 @@ function render() {
           <b>Control</b>
           <small>${adultMode ? 'Adult' : 'PG'}</small>
         </button>
+        <button type="button" class="command-party" data-action="party">
+          <span aria-hidden="true">#</span>
+          <b>Party</b>
+          <small>Tables</small>
+        </button>
       </nav>
     </main>
     ${howToPlaybook()}
@@ -491,6 +521,7 @@ function jukeboxConsole({ musicTrack, musicStatus, musicVolume, musicTime, music
 
 function bindActions() {
   bindClickAction('roll', () => rollTurn());
+  bindClickAction('party', () => openPartyMode());
   bindClickAction('open-how', () => {
     state.mobileTray = null;
     state.howToOpen = true;
@@ -667,6 +698,26 @@ function bindMusicEvents() {
     state.musicError = 'Track skipped.';
     advanceMusicTrack(1, { autoplay: true });
   });
+}
+
+function primeMusicElement() {
+  const music = musicElement();
+  if (music && !music.getAttribute('src')) {
+    music.src = JUKEBOX_TRACKS[0].src;
+  }
+}
+
+function openPartyMode() {
+  stopAllAudio({ cancelRoll: true, pauseMusic: true });
+  state.mobileTray = null;
+  state.howToOpen = false;
+  root.hidden = true;
+  partyController.open();
+}
+
+function hasAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  return params.has('code') && params.has('state');
 }
 
 function registerServiceWorker() {
@@ -1439,28 +1490,25 @@ function createTurn() {
   const rollem = randomInt(1, 9, rng);
   const rollem2 = randomInt(1, 6, rng);
   const card = drawCard(rng);
-  const scores = [
-    9 - rollem,
-    6 - rollem2,
-    cardScore(card)
-  ];
-  const rawScore = scores.reduce((total, score) => total + score, 0);
-  const jackpot = isPerfectNineSix({ rollem, rollem2, card });
-  const noScoreHand = isNoScoreHand({ rollem, rollem2, card, rawScore });
+  const scoredHand = scoreNineSixHand({ d9: rollem, d6: rollem2, cardRank: card.rank });
+  const scores = scoredHand.gaps;
+  const rawScore = scoredHand.rawScore;
+  const jackpot = scoredHand.perfect;
+  const noScoreHand = scoredHand.noScore;
   let verdict;
   let finalScore;
 
   if (jackpot) {
-    finalScore = TARGET_SCORE;
+    finalScore = scoredHand.handScore;
     verdict = 'Nine Six Bitch. 9, 6, Queen. The table is yours.';
   } else if (noScoreHand) {
-    finalScore = 0;
+    finalScore = scoredHand.handScore;
     verdict = 'Trash hand. House sweeps that bullshit because you got too high. Final score is zero.';
   } else if (rawScore < 7) {
-    finalScore = rawScore * 9;
+    finalScore = scoredHand.handScore;
     verdict = `That's money. 6 or under gets paid x9 for ${finalScore}.`;
   } else {
-    finalScore = rawScore;
+    finalScore = scoredHand.handScore;
     verdict = `Respectable. Bank ${finalScore} and do not get cute.`;
   }
 
@@ -1480,12 +1528,17 @@ function createTurn() {
 }
 
 function settleBank(turn, totalBefore) {
+  const settlement = settleNineSixBank(totalBefore, {
+    handScore: turn.finalScore,
+    perfect: turn.jackpot
+  });
+
   if (turn.jackpot) {
     return {
       ...turn,
       handScore: turn.finalScore,
       finalScore: TARGET_SCORE,
-      totalAfter: TARGET_SCORE,
+      totalAfter: settlement.bankAfter,
       bankBust: false,
       exactWin: true,
       verdict: 'Nine Six Bitch. Final bank is exactly 96. The table is yours.'
@@ -1502,14 +1555,12 @@ function settleBank(turn, totalBefore) {
     };
   }
 
-  const plannedTotal = totalBefore + turn.finalScore;
-
-  if (plannedTotal > TARGET_SCORE) {
+  if (settlement.bust) {
     return {
       ...turn,
       handScore: turn.finalScore,
       finalScore: 0,
-      totalAfter: BUST_RESET_SCORE,
+      totalAfter: settlement.bankAfter,
       bankBust: true,
       exactWin: false,
       verdict: `BUST. ${totalBefore} plus ${turn.finalScore} blows past 96. Back to 69.`
@@ -1519,10 +1570,10 @@ function settleBank(turn, totalBefore) {
   return {
     ...turn,
     handScore: turn.finalScore,
-    totalAfter: plannedTotal,
+    totalAfter: settlement.bankAfter,
     bankBust: false,
-    exactWin: plannedTotal === TARGET_SCORE,
-    verdict: plannedTotal === TARGET_SCORE
+    exactWin: settlement.exactWin,
+    verdict: settlement.exactWin
       ? 'Bank 96. Final bank is 96. That is the number.'
       : turn.verdict
   };

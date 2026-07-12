@@ -8,9 +8,20 @@
     "node": "24.x"
   },
   "scripts": {
-    "build": "node tools/build-web.mjs",
+    "dev": "vite --host 127.0.0.1 --port 4174 --strictPort",
+    "build": "vite build && node tools/postbuild.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify:contracts": "node tools/verify-party-contracts.mjs",
     "verify:browser": "node tools/verify-browser.mjs",
-    "serve": "node tools/serve.mjs",
-    "start": "node tools/serve.mjs"
+    "serve": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
+    "start": "vite preview --host 0.0.0.0 --port 4174"
+  },
+  "dependencies": {
+    "@auth0/auth0-spa-js": "^2.23.0",
+    "@supabase/supabase-js": "^2.110.2",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "vite": "^8.1.4"
   }
 }

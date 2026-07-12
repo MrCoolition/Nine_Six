@@ -1,13 +1,8 @@
-const CACHE_NAME = 'nine-six-shell-v22';
+const CACHE_NAME = 'nine-six-shell-v23';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './src/app/styles.css?v=20260712-how-to-v22',
-  './src/app/experience.css?v=20260712-how-to-v22',
-  './src/app/noir.css?v=20260712-how-to-v22',
-  './src/app/skins.css?v=20260712-how-to-v22',
-  './src/app/app.component.js?v=20260712-how-to-v22',
   './src/assets/nine-six-icon.svg'
 ];
 
@@ -28,7 +23,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
+  const requestUrl = new URL(event.request.url);
+  if (event.request.method !== 'GET' || requestUrl.origin !== location.origin || requestUrl.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', response.clone()));
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
     return;
   }
 
@@ -36,11 +44,9 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((response) => {
         const copy = response.clone();
-        if (new URL(event.request.url).origin === location.origin) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        }
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('./index.html')))
+      .catch(() => caches.match(event.request))
   );
 });
