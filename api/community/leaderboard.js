@@ -1,13 +1,12 @@
 import { communitySql, ensureCommunitySchema } from './_db.js';
-
-const METRICS = new Set(['wins', 'perfects', 'biggest_pot', 'best_win_streak', 'walkouts']);
+import { normalizeLeaderboardLimit, normalizeLeaderboardMetric } from './_leaderboard.js';
 
 export default async function handler(request, response) {
   if (request.method !== 'GET') return send(response, 405, { error: 'Method not allowed.' });
   try {
     await ensureCommunitySchema();
-    const metric = METRICS.has(String(request.query?.metric || 'wins')) ? String(request.query.metric) : 'wins';
-    const limit = Math.max(1, Math.min(50, Number(request.query?.limit) || 20));
+    const metric = normalizeLeaderboardMetric(request.query?.metric);
+    const limit = normalizeLeaderboardLimit(request.query?.limit);
     const sql = communitySql();
     const [leaders, summary] = await Promise.all([
       leaderboardQuery(sql, metric, limit),

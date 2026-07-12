@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const db = await readFile(new URL('../api/community/_db.js', import.meta.url), 'utf8');
 const config = await readFile(new URL('../api/community/_config.js', import.meta.url), 'utf8');
 const leaderboard = await readFile(new URL('../api/community/leaderboard.js', import.meta.url), 'utf8');
+const leaderboardRules = await readFile(new URL('../api/community/_leaderboard.js', import.meta.url), 'utf8');
 const clientConfig = await readFile(new URL('../src/app/party/party-config.js', import.meta.url), 'utf8');
 
 for (const table of [
@@ -18,7 +19,8 @@ for (const table of [
 assert.match(db, /process\.env\.DB_CONNECT/);
 assert.doesNotMatch(clientConfig, /DB_CONNECT|AUTH0_CLIENT_SECRET|AUTH0_SECRET/);
 assert.doesNotMatch(config, /AUTH0_CLIENT_SECRET|AUTH0_SECRET/);
-assert.match(leaderboard, /METRICS = new Set/);
+assert.match(leaderboardRules, /METRICS = new Set/);
+assert.match(leaderboard, /normalizeLeaderboardMetric\(request\.query\?\.metric\)/);
 assert.match(leaderboard, /limit \$1/);
 assert.doesNotMatch(leaderboard, /request\.body|req\.body/);
 
