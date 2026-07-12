@@ -1,6 +1,6 @@
 import { createPartyAuth } from './auth-client.js';
 import { createDemoPartyBackend } from './demo-backend.js';
-import { getPartyConfig } from './party-config.js';
+import { getPartyConfig, hydratePartyConfig } from './party-config.js';
 import { createSupabasePartyBackend } from './supabase-backend.js';
 
 const STAKES = [25, 50, 100, 250];
@@ -25,6 +25,7 @@ export function createPartyController({ root, onExit }) {
     session: null,
     backend: null,
     lobby: null,
+    sharedLeaderboard: null,
     table: null,
     createOpen: false,
     chatOpen: false,
@@ -67,6 +68,8 @@ export function createPartyController({ root, onExit }) {
       startTicker();
 
       try {
+        await hydratePartyConfig(config);
+        state.sharedLeaderboard = await loadSharedLeaderboard();
         state.session = await auth.init();
         if (state.session && config.backendConfigured) {
           await connectLiveParty();
@@ -101,9 +104,25 @@ export function createPartyController({ root, onExit }) {
     state.backend = createDemoPartyBackend();
     state.session = state.backend.session;
     state.lobby = await state.backend.bootstrap();
+    state.sharedLeaderboard = await loadSharedLeaderboard();
     state.view = 'lobby';
     state.notice = 'Preview table. Results stay on this device.';
     render();
+  }
+
+  async function loadSharedLeaderboard() {
+    if (!config.sharedLeaderboardConfigured) return null;
+    try {
+      const response = await fetch('/api/community/leaderboard?metric=wins&limit=20', {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+      });
+      if (!response.ok) return null;
+      const payload = await response.json();
+      return payload.connected ? payload : null;
+    } catch {
+      return null;
+    }
   }
 
   function closeParty() {
@@ -493,10 +512,11 @@ export function createPartyController({ root, onExit }) {
   }
 
   function gateView() {
+    const sharedLive = Boolean(state.sharedLeaderboard?.connected);
     const status = !config.authConfigured
-      ? 'Auth0 keys are not connected on this deployment.'
+      ? `${sharedLive ? 'Neon standings are live. ' : ''}Auth0 needs a domain, SPA client ID, and API audience.`
       : !config.backendConfigured
-        ? 'Auth0 is ready. Supabase still needs to be connected.'
+        ? `${sharedLive ? 'Neon standings are live. ' : ''}Authenticated Party match writes are still locked.`
         : 'Sign in to take a community seat.';
     return partyShell(`
       <main class="party-gate">
@@ -524,7 +544,12 @@ export function createPartyController({ root, onExit }) {
   function lobbyView() {
     const profile = state.lobby?.profile || {};
     const rooms = state.lobby?.rooms || [];
-    const leaders = state.lobby?.leaders || [];
+    const shared = state.sharedLeaderboard;
+    const leaders = shared?.connected ? shared.leaders || [] : state.lobby?.leaders || [];
+    const standingsLabel = shared?.connected ? 'NEON SHARED STANDINGS' : 'PREVIEW STANDINGS';
+    const standingsFooter = shared?.connected
+      ? `${formatNumber(shared.summary?.players)} players / ${formatNumber(shared.summary?.matches)} matches / biggest pot ${formatNumber(shared.summary?.biggestPot)}`
+      : 'Preview names stay on this device and never enter the shared board.';
     return partyShell(`
       <main class="party-lobby">
         <section class="party-lobby-head">
@@ -565,15 +590,15 @@ export function createPartyController({ root, onExit }) {
           </section>
 
           <aside class="party-standings">
-            <header class="party-section-head"><div><span>GLOBAL STANDINGS</span><h2>House names</h2></div></header>
+            <header class="party-section-head"><div><span>${standingsLabel}</span><h2>${shared?.connected ? 'The board' : 'House names'}</h2></div></header>
             <div class="party-leader-head"><span># / Player</span><span>Wins</span><span>9/6/Q</span></div>
             ${leaders.map((leader, index) => `
               <div class="party-leader-row">
                 <span><b>${index + 1}</b>${avatar(leader.handle)}<strong>${escapeHtml(leader.handle)}</strong></span>
                 <b>${formatNumber(leader.wins)}</b><b>${formatNumber(leader.perfects)}</b>
               </div>
-            `).join('') || '<p class="party-empty">The board is waiting.</p>'}
-            <footer>Biggest pot / streak / walkouts update after settlement.</footer>
+            `).join('') || `<p class="party-empty">${shared?.connected ? 'Connected. First verified Party win takes number one.' : 'The preview board is waiting.'}</p>`}
+            <footer>${standingsFooter}</footer>
           </aside>
         </div>
       </main>

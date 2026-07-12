@@ -19,6 +19,7 @@ export function createPartyAuth(config) {
         clientId: config.auth0.clientId,
         authorizationParams: {
           redirect_uri: window.location.origin,
+          scope: config.auth0.scope,
           ...(config.auth0.audience ? { audience: config.auth0.audience } : {})
         },
         cacheLocation: 'localstorage',
@@ -70,7 +71,10 @@ export function createPartyAuth(config) {
     async getAccessToken() {
       if (!client) return '';
       return client.getTokenSilently({
-        authorizationParams: config.auth0.audience ? { audience: config.auth0.audience } : {}
+        authorizationParams: {
+          scope: config.auth0.scope,
+          ...(config.auth0.audience ? { audience: config.auth0.audience } : {})
+        }
       });
     }
   };

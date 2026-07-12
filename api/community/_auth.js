@@ -1,11 +1,13 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { getCommunityRuntimeConfig } from './_config.js';
 
 let cachedIssuer = '';
 let cachedJwks = null;
 
 export async function requireAuth0Subject(request) {
-  const issuer = normalizeIssuer(process.env.AUTH0_ISSUER_BASE_URL);
-  const audience = String(process.env.AUTH0_AUDIENCE || '').trim();
+  const config = getCommunityRuntimeConfig();
+  const issuer = normalizeIssuer(config.auth0.domain);
+  const audience = config.auth0.audience;
   if (!issuer || !audience) {
     throw httpError(503, 'Party authentication is not configured.');
   }
@@ -40,5 +42,7 @@ export function httpError(status, message) {
 
 function normalizeIssuer(value) {
   const issuer = String(value || '').trim();
-  return issuer ? `${issuer.replace(/\/+$/, '')}/` : '';
+  if (!issuer) return '';
+  const absolute = /^https?:\/\//i.test(issuer) ? issuer : `https://${issuer}`;
+  return `${absolute.replace(/\/+$/, '')}/`;
 }
