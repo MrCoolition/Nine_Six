@@ -6,6 +6,7 @@ import {
   settleNineSixBank
 } from './core/game-rules.js';
 import { createPartyController } from './party/party-controller.js';
+import { partyOutcomeAudioRoute } from './party/party-presentation.js';
 
 const TARGET_SCORE = NINE_SIX_TARGET;
 const BUST_RESET_SCORE = NINE_SIX_BUST_RESET;
@@ -244,6 +245,12 @@ const root = document.querySelector('#game-root');
 const partyRoot = document.querySelector('#party-root');
 const partyController = createPartyController({
   root: partyRoot,
+  presentationEffects: {
+    playReveal: (kind) => kind === 'card' ? playCardDealSound() : playTumbleDiceSound(),
+    playOutcome: playPartyOutcomeSound,
+    vibrate: vibrateForPartyHand,
+    stop: stopPartyPresentationAudio
+  },
   onExit: () => {
     root.hidden = false;
     state.actionTimes = {};
@@ -2815,6 +2822,37 @@ function playRevealEffect(die) {
   playTumbleDiceSound();
 }
 
+function stopPartyPresentationAudio() {
+  cancelScheduledSounds();
+  cancelScheduledCallouts();
+  stopActiveCallout();
+  stopActiveEffectAudio();
+  stopActiveTones();
+}
+
+function playPartyOutcomeSound(hand, tone) {
+  stopPartyPresentationAudio();
+  if (state.muted || !isActiveGameTab()) return;
+
+  const route = partyOutcomeAudioRoute(hand, tone);
+  if (route === 'perfect-nine-six') {
+    playRandomCallout(JACKPOT_CALLOUTS, 0.92, route, { validate: false });
+  } else if (route === 'boofball-boo') {
+    playRandomCallout(BOOFBALL_CALLOUTS, 0.9, route, { validate: false });
+  } else if (route === 'bank-bust-horn') {
+    playRandomCallout(BUST_HORNS, 0.88, route, { validate: false });
+  }
+}
+
+function vibrateForPartyHand(hand) {
+  if (!navigator.vibrate || state.muted) return;
+  if (hand.perfect) navigator.vibrate([80, 50, 80, 50, 160]);
+  else if (Number(hand.bank_after) === TARGET_SCORE) navigator.vibrate([70, 40, 120]);
+  else if (hand.bust) navigator.vibrate([120, 80, 120]);
+  else if (hand.lane === 'no-score') navigator.vibrate([90, 50, 90]);
+  else if (Number(hand.hand_score) >= 45) navigator.vibrate([45, 35, 90]);
+}
+
 function playOneShotEffect(sources, volume, type) {
   if (state.muted || !sources.length || !isActiveGameTab()) {
     return;
@@ -2837,8 +2875,8 @@ function playOneShotEffect(sources, volume, type) {
   });
 }
 
-function playRandomCallout(callouts, volume, type) {
-  if (state.muted || !callouts.length || !isActiveGameTab() || !canPlayCalloutType(type)) {
+function playRandomCallout(callouts, volume, type, { validate = true } = {}) {
+  if (state.muted || !callouts.length || !isActiveGameTab() || (validate && !canPlayCalloutType(type))) {
     return;
   }
 

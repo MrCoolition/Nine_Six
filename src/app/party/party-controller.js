@@ -1,6 +1,16 @@
 import { createPartyAuth } from './auth-client.js';
 import { createDemoPartyBackend } from './demo-backend.js';
 import { getPartyConfig, hydratePartyConfig } from './party-config.js';
+import {
+  normalizePartyPresentationMode,
+  PARTY_PAYOFF_HOLD_MS,
+  PARTY_PRESENTATION_STORAGE_KEY,
+  PARTY_REVEAL_DURATION_MS,
+  partyEventKey,
+  partyOutcomeCopy,
+  partyRevealStages,
+  partySpinValue
+} from './party-presentation.js';
 import { createSupabasePartyBackend } from './supabase-backend.js';
 
 const STAKES = [25, 50, 100, 250];
@@ -13,7 +23,7 @@ const TAUNTS = [
   'I OWN THIS FELT.'
 ];
 
-export function createPartyController({ root, onExit }) {
+export function createPartyController({ root, onExit, presentationEffects = {} }) {
   const config = getPartyConfig();
   const auth = createPartyAuth(config);
   const state = {
@@ -39,7 +49,13 @@ export function createPartyController({ root, onExit }) {
     typing: null,
     mutedSubjects: new Set(),
     lastClockSecond: -1,
-    actionTimes: new Map()
+    actionTimes: new Map(),
+    presentationMode: loadPresentationMode(),
+    presentation: null,
+    presentationToken: 0,
+    latestHandKey: '',
+    fastRevealKey: '',
+    fastRevealTimer: null
   };
   let unsubscribe = null;
   let ticker = null;
@@ -50,6 +66,7 @@ export function createPartyController({ root, onExit }) {
   root.addEventListener('change', handleChange);
   root.addEventListener('input', handleInput);
   document.addEventListener('keydown', handleKeydown);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   return {
     get open() {
@@ -126,6 +143,7 @@ export function createPartyController({ root, onExit }) {
   }
 
   function closeParty() {
+    cancelPresentation();
     unsubscribe?.();
     unsubscribe = null;
     window.clearInterval(ticker);
@@ -135,6 +153,7 @@ export function createPartyController({ root, onExit }) {
     state.chatOpen = false;
     state.table = null;
     state.lockDeadline = 0;
+    state.latestHandKey = '';
     root.hidden = true;
     root.innerHTML = '';
     document.body.classList.remove('party-active', 'party-chat-open');
@@ -147,11 +166,21 @@ export function createPartyController({ root, onExit }) {
     if (!button || !root.contains(button)) return;
     event.preventDefault();
     const action = button.dataset.partyAction;
-    const actionKey = [action, button.dataset.roomId, button.dataset.messageId, button.dataset.subject].filter(Boolean).join(':');
+    const actionKey = [action, button.dataset.mode, button.dataset.roomId, button.dataset.messageId, button.dataset.subject].filter(Boolean).join(':');
     if (!acceptAction(actionKey)) return;
-    if (state.busy && action !== 'close' && action !== 'chat-toggle') return;
+    if (state.busy && !['close', 'chat-toggle', 'presentation-mode', 'presentation-skip'].includes(action)) return;
 
     if (action === 'close') return closeParty();
+    if (action === 'presentation-mode') {
+      setPresentationMode(button.dataset.mode);
+      return;
+    }
+    if (action === 'presentation-skip') {
+      cancelPresentation();
+      render();
+      scheduleBot();
+      return;
+    }
     if (action === 'chat-toggle') {
       state.chatOpen = !state.chatOpen;
       document.body.classList.toggle('party-chat-open', state.chatOpen);
@@ -187,6 +216,7 @@ export function createPartyController({ root, onExit }) {
     }
     if (action === 'roll') {
       if (!isMyTurn()) return;
+      cancelPresentation();
       return run(async () => {
         await state.backend.takeTurn(state.table.match.id, crypto.randomUUID());
         if (state.backend.kind !== 'demo') await refreshRoom();
@@ -310,6 +340,12 @@ export function createPartyController({ root, onExit }) {
     closeParty();
   }
 
+  function handleVisibilityChange() {
+    if (!state.open || document.visibilityState === 'visible') return;
+    cancelPresentation();
+    if (!root.hidden) render();
+  }
+
   function acceptAction(key) {
     const now = Date.now();
     const previous = state.actionTimes.get(key) || 0;
@@ -340,6 +376,7 @@ export function createPartyController({ root, onExit }) {
   }
 
   async function enterRoom(table) {
+    cancelPresentation();
     unsubscribe?.();
     state.table = table;
     state.view = 'room';
@@ -347,6 +384,7 @@ export function createPartyController({ root, onExit }) {
     state.lockSignature = '';
     state.startTriggered = false;
     state.chatOpen = false;
+    state.latestHandKey = partyEventKey(latestHandFromTable(table));
     unsubscribe = state.backend.subscribeRoom(table.room.id, (next, error) => {
       if (error) {
         state.error = cleanError(error);
@@ -366,13 +404,131 @@ export function createPartyController({ root, onExit }) {
 
   function applyRoom(table) {
     if (!table) return;
+    const previousTable = state.table;
+    const latest = latestHandFromTable(table);
+    const latestKey = partyEventKey(latest);
+    const isNewHand = Boolean(latestKey && latestKey !== state.latestHandKey);
     state.table = table;
+    if (!latestKey && table.room.status === 'open') state.latestHandKey = '';
+    else if (latestKey) state.latestHandKey = latestKey;
     if (table.room.status !== 'open') {
       state.lockDeadline = 0;
       state.startTriggered = false;
     }
+    if (isNewHand) {
+      if (state.presentationMode === 'dramatic') beginDramaticPresentation(latest, previousTable);
+      else showFastPresentation(latest);
+      return;
+    }
     render();
     scheduleBot();
+  }
+
+  function setPresentationMode(value) {
+    const nextMode = normalizePartyPresentationMode(value);
+    if (nextMode === state.presentationMode) return;
+    state.presentationMode = nextMode;
+    try {
+      localStorage.setItem(PARTY_PRESENTATION_STORAGE_KEY, nextMode);
+    } catch {}
+    cancelPresentation();
+    render();
+    scheduleBot();
+  }
+
+  function cancelPresentation() {
+    state.presentationToken += 1;
+    state.presentation = null;
+    state.fastRevealKey = '';
+    window.clearTimeout(state.fastRevealTimer);
+    state.fastRevealTimer = null;
+    presentationEffects.stop?.();
+  }
+
+  function showFastPresentation(event) {
+    cancelPresentation();
+    const eventKey = partyEventKey(event);
+    state.fastRevealKey = eventKey;
+    presentationEffects.playOutcome?.(event.payload || {}, state.table?.room?.tone);
+    presentationEffects.vibrate?.(event.payload || {});
+    render();
+    state.fastRevealTimer = window.setTimeout(() => {
+      if (state.fastRevealKey !== eventKey) return;
+      state.fastRevealKey = '';
+      state.fastRevealTimer = null;
+      render();
+    }, 900);
+    scheduleBot();
+  }
+
+  async function beginDramaticPresentation(event, previousTable) {
+    cancelPresentation();
+    const token = state.presentationToken;
+    const hand = event.payload || {};
+    const stages = partyRevealStages(hand);
+    state.presentation = {
+      active: true,
+      event,
+      hand,
+      stage: 'house-call',
+      stageLabel: 'THE HAND IS IN',
+      display: { d9: '-', d6: '-', card_rank: '-' },
+      locked: [],
+      outcome: null,
+      playersBefore: (previousTable?.players || state.table?.players || []).map((player) => ({ ...player })),
+      matchBefore: previousTable?.match ? { ...previousTable.match } : state.table?.match ? { ...state.table.match } : null
+    };
+    render();
+    await waitForPresentation(260, token);
+
+    for (const stage of stages) {
+      if (!presentationIsCurrent(token)) return;
+      state.presentation.stage = stage.key;
+      state.presentation.stageLabel = stage.label;
+      state.presentation.display[stage.key] = partySpinValue(stage);
+      presentationEffects.playReveal?.(stage.kind, stage.key);
+      render();
+      await animatePartyStage(stage, token);
+      if (!presentationIsCurrent(token)) return;
+      state.presentation.display[stage.key] = stage.finalValue;
+      state.presentation.locked.push(stage.key);
+      render();
+    }
+
+    if (!presentationIsCurrent(token)) return;
+    state.presentation.stage = 'payoff';
+    state.presentation.stageLabel = 'HAND SETTLED';
+    state.presentation.outcome = partyOutcomeCopy(hand, state.table?.room?.tone);
+    presentationEffects.playOutcome?.(hand, state.table?.room?.tone);
+    presentationEffects.vibrate?.(hand);
+    render();
+    await waitForPresentation(PARTY_PAYOFF_HOLD_MS, token);
+    if (!presentationIsCurrent(token)) return;
+    state.presentation = null;
+    render();
+    scheduleBot();
+  }
+
+  async function animatePartyStage(stage, token) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < PARTY_REVEAL_DURATION_MS) {
+      await waitForPresentation(96, token);
+      if (!presentationIsCurrent(token)) return;
+      const value = partySpinValue(stage);
+      state.presentation.display[stage.key] = value;
+      const node = root.querySelector(`[data-party-reveal-value="${stage.key}"]`);
+      if (node) node.textContent = String(value);
+    }
+  }
+
+  function presentationIsCurrent(token) {
+    return state.open && state.presentation?.active && state.presentationToken === token && document.visibilityState === 'visible';
+  }
+
+  function waitForPresentation(milliseconds, token) {
+    return new Promise((resolve) => {
+      window.setTimeout(() => resolve(state.presentationToken === token), milliseconds);
+    });
   }
 
   async function refreshRoom() {
@@ -451,7 +607,7 @@ export function createPartyController({ root, onExit }) {
   }
 
   function scheduleBot() {
-    if (state.backend?.kind !== 'demo' || state.botPending) return;
+    if (state.backend?.kind !== 'demo' || state.botPending || state.presentation?.active) return;
     const actor = activePlayer();
     if (!actor?.is_bot || state.table?.match?.status !== 'active') return;
     state.botPending = true;
@@ -615,6 +771,9 @@ export function createPartyController({ root, onExit }) {
     const readyCount = table.members.filter((member) => member.ready).length;
     const actor = activePlayer();
     const latest = latestHandEvent();
+    const presenting = Boolean(state.presentation?.active);
+    const seatPlayers = presenting ? state.presentation.playersBefore : table.players;
+    const seatMatch = presenting ? state.presentation.matchBefore : match;
     const winner = finished ? table.players.find((player) => player.auth_subject === match?.winner_subject) : null;
     return partyShell(`
       <main class="party-room ${active ? 'match-live' : ''} ${finished ? 'match-finished' : ''}">
@@ -622,6 +781,7 @@ export function createPartyController({ root, onExit }) {
           <button class="party-back" type="button" data-party-action="${active ? 'forfeit' : 'lobby'}" title="${active ? 'Forfeit match' : 'Back to lobby'}" aria-label="${active ? 'Forfeit match' : 'Back to lobby'}">&#8592;</button>
           <div><span>${escapeHtml(room.visibility)} TABLE / ${escapeHtml(room.code)}</span><h1>${escapeHtml(room.name || 'NINE SIX TABLE')}</h1></div>
           <dl><div><dt>Stake</dt><dd>${room.stake}</dd></div><div><dt>Pot</dt><dd>${formatNumber(match?.pot ?? room.stake * readyCount)}</dd></div><div><dt>Tone</dt><dd>${escapeHtml(room.tone)}</dd></div></dl>
+          ${presentationModeControl()}
           <button class="party-chat-launch" type="button" data-party-action="chat-toggle" aria-expanded="${state.chatOpen}"><span aria-hidden="true">#</span> Talk shit</button>
         </section>
         ${feedback()}
@@ -630,12 +790,12 @@ export function createPartyController({ root, onExit }) {
           <section class="party-table-column">
             <div class="party-felt ${active ? 'is-live' : ''} ${finished ? 'is-finished' : ''}">
               <div class="party-seat-ring" style="--seat-count:${Math.max(2, room.max_seats)}">
-                ${seatRing(room.max_seats, table.members, table.players, match)}
+                ${seatRing(room.max_seats, table.members, seatPlayers, seatMatch)}
               </div>
               ${open ? lockInCenter(readyCount) : matchCenter(match, actor, latest, winner)}
             </div>
-            ${open ? openTableActions(readyCount) : matchActions(match, winner)}
-            ${latest ? handReceipt(latest) : ''}
+            ${open ? openTableActions(readyCount) : presenting ? presentationActions() : matchActions(match, winner)}
+            ${latest && !presenting ? handReceipt(latest) : ''}
           </section>
           ${chatPanel(room)}
         </div>
@@ -671,6 +831,18 @@ export function createPartyController({ root, onExit }) {
         <label class="party-field"><span>TONE</span><select name="tone"><option value="adult">Adult</option><option value="pg">PG</option></select></label>
         <button class="party-primary" type="submit">Open table</button>
       </form>
+    `;
+  }
+
+  function presentationModeControl() {
+    return `
+      <div class="party-presentation-mode" aria-label="Roll presentation">
+        <span>ROLL CUT</span>
+        <div role="group" aria-label="Choose roll presentation speed">
+          <button type="button" data-party-action="presentation-mode" data-mode="fast" aria-pressed="${state.presentationMode === 'fast'}" class="${state.presentationMode === 'fast' ? 'active' : ''}">Fast</button>
+          <button type="button" data-party-action="presentation-mode" data-mode="dramatic" aria-pressed="${state.presentationMode === 'dramatic'}" class="${state.presentationMode === 'dramatic' ? 'active' : ''}">Dramatic</button>
+        </div>
+      </div>
     `;
   }
 
@@ -719,6 +891,7 @@ export function createPartyController({ root, onExit }) {
   }
 
   function matchCenter(match, actor, latest, winner) {
+    if (state.presentation?.active) return dramaticRevealCenter();
     if (match.status === 'finished') {
       return `
         <section class="party-table-center party-winner-center">
@@ -731,16 +904,73 @@ export function createPartyController({ root, onExit }) {
       `;
     }
     const hand = latest?.payload;
+    const fastArrival = partyEventKey(latest) === state.fastRevealKey;
     return `
       <section class="party-table-center ${isMyTurn() ? 'your-turn' : ''}">
         <div class="party-turn-line"><span>${isMyTurn() ? 'YOUR TURN' : `${escapeHtml(actor?.handle || 'HOUSE')} IS UP`}</span><div class="party-clock"><b data-party-clock>20</b><i></i></div></div>
-        <div class="party-live-hand ${hand?.perfect ? 'perfect' : ''}">
+        <div class="party-live-hand ${hand?.perfect ? 'perfect' : ''} ${fastArrival ? 'fast-arrival' : ''}">
           <div><span>D9</span><b>${hand?.d9 ?? '-'}</b></div>
           <div><span>D6</span><b>${hand?.d6 ?? '-'}</b></div>
           <div class="party-card-slot"><span>CARD</span><b>${hand?.card_rank ?? '-'}</b></div>
         </div>
         <div class="party-current-player"><span>${avatar(actor?.handle || 'HOUSE')}</span><div><small>CLOCKWISE ACTION</small><strong>${escapeHtml(actor?.handle || 'WAITING')}</strong></div></div>
         ${isMyTurn() ? `<button class="party-roll-button" type="button" data-party-action="roll" ${state.busy ? 'disabled' : ''}><span>ROLL</span><small>9 / 6 / Q</small></button>` : '<p>No auto-roll. Their clock, their problem.</p>'}
+      </section>
+    `;
+  }
+
+  function dramaticRevealCenter() {
+    const reveal = state.presentation;
+    const actor = state.table.members.find((member) => member.auth_subject === reveal.event.actor_subject);
+    const stages = partyRevealStages(reveal.hand);
+    const activeIndex = Math.max(0, stages.findIndex((stage) => stage.key === reveal.stage));
+    const outcome = reveal.outcome;
+    return `
+      <section class="party-table-center party-reveal-center stage-${escapeHtml(reveal.stage)} ${outcome ? `outcome-${escapeHtml(outcome.tone)}` : ''}" aria-live="polite">
+        <div class="party-reveal-head"><span>${escapeHtml(actor?.handle || 'PLAYER')} THREW THE HAND</span><strong>DRAMATIC CUT</strong></div>
+        <div class="party-reveal-status"><span>${escapeHtml(reveal.stageLabel)}</span><b>${outcome ? 'SETTLED' : `${activeIndex + 1} / 3`}</b></div>
+        <div class="party-live-hand party-dramatic-hand ${reveal.hand.perfect && outcome ? 'perfect' : ''}">
+          ${dramaticRevealSlot(stages[0], reveal)}
+          ${dramaticRevealSlot(stages[1], reveal)}
+          ${dramaticRevealSlot(stages[2], reveal)}
+        </div>
+        ${outcome ? `
+          <div class="party-reveal-payoff ${escapeHtml(outcome.tone)}">
+            <span>${escapeHtml(outcome.kicker)}</span>
+            <strong>${escapeHtml(outcome.headline)}</strong>
+            <small>${escapeHtml(outcome.detail)}</small>
+          </div>
+        ` : `
+          <div class="party-reveal-meter" aria-hidden="true"><i></i></div>
+          <p>${reveal.stage === 'card_rank' ? 'The face card is coming off the deck.' : 'Let it tumble. Let it talk.'}</p>
+        `}
+        <button class="party-reveal-skip" type="button" data-party-action="presentation-skip">Skip reveal</button>
+      </section>
+    `;
+  }
+
+  function dramaticRevealSlot(stage, reveal) {
+    const active = reveal.stage === stage.key;
+    const locked = reveal.locked.includes(stage.key);
+    const value = reveal.display[stage.key];
+    return `
+      <div class="party-reveal-slot ${stage.kind === 'card' ? 'party-card-slot' : ''} ${active ? 'spinning' : ''} ${locked ? 'locked' : ''} ${!active && !locked ? 'waiting' : ''}">
+        <span>${escapeHtml(stage.label)}</span>
+        <b data-party-reveal-value="${escapeHtml(stage.key)}">${escapeHtml(value)}</b>
+        <small>${locked ? 'LOCKED' : active ? stage.kind === 'card' ? 'DEALING' : 'TUMBLING' : 'WAITING'}</small>
+      </div>
+    `;
+  }
+
+  function presentationActions() {
+    const reveal = state.presentation;
+    const actor = state.table.members.find((member) => member.auth_subject === reveal.event.actor_subject);
+    const nextTurnReady = isMyTurn() && state.table.match?.status === 'active';
+    return `
+      <section class="party-action-dock party-presentation-dock">
+        <div><span>HAND IN MOTION</span><strong>${escapeHtml(actor?.handle || 'PLAYER')} / ${escapeHtml(reveal.stageLabel)}</strong><small>Server result is locked. This cut only controls how you see it.</small></div>
+        ${nextTurnReady ? '<button class="party-primary" type="button" data-party-action="roll">Skip + roll your hand</button>' : '<button type="button" data-party-action="presentation-skip">Show result now</button>'}
+        <button class="party-chat-launch mobile" type="button" data-party-action="chat-toggle"># Chat</button>
       </section>
     `;
   }
@@ -851,6 +1081,18 @@ function stakeRadios(name, selected) {
 
 function toneRadios(name, selected) {
   return ['adult', 'pg'].map((tone) => `<label><input type="radio" name="${name}" value="${tone}" ${tone === selected ? 'checked' : ''}><span>${tone}</span></label>`).join('');
+}
+
+function latestHandFromTable(table) {
+  return [...(table?.events || [])].reverse().find((event) => event.type === 'hand-settled') || null;
+}
+
+function loadPresentationMode() {
+  try {
+    return normalizePartyPresentationMode(localStorage.getItem(PARTY_PRESENTATION_STORAGE_KEY));
+  } catch {
+    return 'dramatic';
+  }
 }
 
 function boofRack(value) {
