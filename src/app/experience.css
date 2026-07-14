@@ -419,34 +419,58 @@ body {
 
 @media (min-width: 741px) {
   .score-band {
-    grid-template-columns: minmax(280px, 1fr) minmax(260px, 430px) minmax(500px, 540px);
+    grid-template-columns: minmax(280px, 1fr) minmax(260px, 430px) minmax(360px, 540px);
+  }
+
+  .score-band > * {
+    min-width: 0;
+  }
+
+  .control-stack {
+    width: 100%;
+    min-width: 0;
+    justify-items: stretch;
   }
 
   .control-row {
-    flex-wrap: nowrap;
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .control-row button {
+    min-width: 0;
+    flex: 1 1 auto;
     min-height: 40px;
     padding-inline: 10px;
     font-size: 0.78rem;
     white-space: nowrap;
   }
 
+  .table-tags {
+    min-width: 0;
+  }
+
   .desktop-music-console {
-    grid-template-columns: minmax(160px, 0.72fr) minmax(260px, 1.28fr);
+    width: 100%;
+    max-width: 540px;
+    min-width: 0;
+    justify-self: end;
+    grid-template-columns: minmax(130px, 0.72fr) minmax(0, 1.28fr);
     gap: 7px 12px;
+  }
+
+  .desktop-music-console > * {
+    min-width: 0;
   }
 
   .desktop-music-console .jukebox-head {
     grid-column: 1;
-    grid-row: 1 / span 3;
+    grid-row: 1 / span 2;
     grid-template-columns: 42px minmax(0, 1fr);
   }
 
   .desktop-music-console .track-progress,
-  .desktop-music-console .jukebox-buttons,
-  .desktop-music-console .volume-control {
+  .desktop-music-console .jukebox-buttons {
     grid-column: 2;
   }
 
@@ -458,12 +482,38 @@ body {
     grid-row: 2;
   }
 
-  .desktop-music-console .volume-control {
+  .desktop-music-console .jukebox-settings {
+    width: 100%;
+    min-width: 0;
+    grid-column: 1 / -1;
     grid-row: 3;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .desktop-music-console .autoplay-control {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .desktop-music-console .volume-control {
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .desktop-music-console .jukebox-buttons button {
     min-height: 34px;
+  }
+}
+
+@media (min-width: 741px) and (max-width: 1180px) {
+  .score-band {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 340px);
+  }
+
+  .control-stack {
+    grid-column: 1 / -1;
   }
 }
 
